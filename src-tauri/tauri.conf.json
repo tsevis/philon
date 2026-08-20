@@ -24,15 +24,29 @@
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data:; connect-src 'self' ipc: http://ipc.localhost",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPDATA/exports/**"]
+        "scope": [
+          "$APPDATA/exports/**"
+        ]
       }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["dmg"],
-    "icon": [],
-    "resources": ["../engine/dist/philon-engine", "../engine/dist/philon-vision-ocr", "../engine/model-manifest.json"],
+    "targets": [
+      "dmg"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "../engine/dist/philon-engine",
+      "../engine/dist/philon-vision-ocr",
+      "../engine/model-manifest.json"
+    ],
     "macOS": {
       "minimumSystemVersion": "15.0"
     }

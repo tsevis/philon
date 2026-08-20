@@ -429,9 +429,15 @@ h1 { margin: 3px 0 0; color: #1d1d1f; font-size: 24px; font-weight: 700; letter-
    lockup on the subtitle's last baseline, so the mark's bottom edge and the
    version both land there; here the names column is padded by the subtitle's
    descent to put that baseline on the row's bottom edge, which does the same
-   thing without depending on `align-items: last baseline`. */
-.splash-backdrop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(6, 10, 9, .58); backdrop-filter: blur(3px); }
-.splash { display: flex; flex-direction: column; width: 640px; height: 580px; overflow: hidden; color: #e9efec; background: #141d1a; border: 1px solid #2b3a34; border-radius: 12px; box-shadow: 0 26px 70px rgba(0,0,0,.55); }
+   thing without depending on `align-items: last baseline`.
+
+   It takes the window background of the application it opens in front of, and
+   follows the system appearance for the same reason the rest of the workspace
+   does — a light panel in front of a dark application reads as a different
+   program. Only the key art and the type on it stay fixed: that band carries
+   its own ink. */
+.splash-backdrop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(29, 29, 31, .32); backdrop-filter: blur(8px); }
+.splash { display: flex; flex-direction: column; width: 640px; height: 580px; overflow: hidden; color: #1d1d1f; background: #fff; border: 1px solid rgba(60, 60, 67, .18); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.22); }
 .splash:focus { outline: none; }
 
 .splash-art { position: relative; flex: 0 0 250px; height: 250px; background-position: center; background-size: cover; }
@@ -451,20 +457,31 @@ h1 { margin: 3px 0 0; color: #1d1d1f; font-size: 24px; font-weight: 700; letter-
 .splash-version { flex: 0 0 auto; margin-left: auto; padding-bottom: 3px; font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; opacity: .7; }
 
 .splash-body { padding: 20px 26px 0; }
-.splash-body p { margin: 0 0 11px; color: #d7e1db; font-size: 12.5px; line-height: 1.35; }
+.splash-body p { margin: 0 0 11px; color: #1d1d1f; font-size: 12.5px; line-height: 1.35; }
 .splash-body p:last-child { margin-bottom: 0; }
 
 .splash-legal { margin-top: auto; padding: 0 26px 14px; }
-.splash-legal summary { display: flex; align-items: center; gap: 5px; color: #93a19c; font-size: 11px; font-weight: 500; list-style: none; cursor: pointer; }
+.splash-legal summary { display: flex; align-items: center; gap: 5px; color: #6e6e73; font-size: 11px; font-weight: 500; list-style: none; cursor: pointer; }
 .splash-legal summary::-webkit-details-marker { display: none; }
-.splash-legal summary:hover { color: #cbd8d2; }
+.splash-legal summary:hover { color: #1d1d1f; }
 .splash-legal summary svg { transition: transform .16s ease; }
 .splash-legal[open] summary svg { transform: rotate(90deg); }
-.splash-legal p { margin: 6px 0 0; color: #8d9b95; font-size: 10.5px; line-height: 1.45; }
+.splash-legal p { margin: 6px 0 0; color: #6e6e73; font-size: 10.5px; line-height: 1.45; }
 
-.splash-footer { display: flex; align-items: center; gap: 14px; padding: 14px 26px; background: #101917; border-top: 1px solid #26312e; }
-.splash-footer > span { color: #8d9b95; font-size: 11px; }
-.splash-footer a { color: var(--accent); font-size: 11px; text-decoration: none; }
+.splash-footer { display: flex; align-items: center; gap: 14px; padding: 14px 26px; background: #f5f5f7; border-top: 1px solid rgba(60, 60, 67, .13); }
+.splash-footer > span { color: #6e6e73; font-size: 11px; }
+.splash-footer a { color: var(--accent-text); font-size: 11px; text-decoration: none; }
 .splash-footer a:hover { text-decoration: underline; }
 .splash-continue { margin-left: auto; padding: 6px 15px; color: var(--accent-ink); font-size: 12px; font-weight: 620; background: var(--accent); border: 0; border-radius: 7px; }
 .splash-continue:hover { background: var(--accent-hover); }
+
+@media (prefers-color-scheme: dark) {
+  .splash { color: #f5f5f7; background: #2c2c2e; border-color: rgba(235, 235, 245, .16); box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .splash-body p { color: #f5f5f7; }
+  .splash-legal summary,
+  .splash-legal p,
+  .splash-footer > span { color: #aeaeb2; }
+  .splash-legal summary:hover { color: #f5f5f7; }
+  .splash-footer { background: #1c1c1e; border-top-color: rgba(235, 235, 245, .13); }
+  .splash-footer a { color: var(--accent); }
+}
