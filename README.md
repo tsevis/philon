@@ -128,12 +128,22 @@ npm run tauri dev
 ```
 
 To work on the interface without building the desktop shell, `npm run dev`
-serves the workspace with a development host that answers with a real
-conversion recorded in `src/dev/conversion.json`. It is installed only under
-`import.meta.env.DEV` and never reaches a packaged build.
+serves the workspace with a development host installed only under
+`import.meta.env.DEV`, which never reaches a packaged build. It answers with a
+real conversion you record yourself:
+
+```bash
+.venv/bin/python scripts/make-dev-fixture.py path/to/document.pdf
+```
+
+That fixture is untracked, because it is the full extracted text of whatever
+document it was made from. Without one the workspace simply opens empty; the
+dev host does not invent a document to fill it.
 
 The screenshots above are produced by `node scripts/make-screenshots.mjs`
 against that dev server, so they can be regenerated rather than hand-collected.
+The document shown in them is a journal article converted locally; only the
+images are committed, not its text.
 
 ## Verification
 

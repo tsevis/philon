@@ -11,3 +11,6 @@ engine/build/
 engine/dist/
 engine/*.spec
 .DS_Store
+
+# Recorded from whatever document a developer converted; not ours to publish.
+src/dev/conversion.json
