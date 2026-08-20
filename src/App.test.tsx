@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { bridge, callsTo, emit, modelPack, resetBridge, respondWith } from "./test/tauri-mock";
 import App from "./App";
 import { PREFERENCES_STORAGE_KEY } from "./lib/preferences";
+import { VERSION } from "./lib/about";
 
 const DOCUMENT_PATH = "/Users/someone/Documents/paper.pdf";
 
@@ -236,5 +237,30 @@ describe("diagnostics", () => {
     fireEvent.click(screen.getByRole("button", { name: "Diagnostics" }));
     fireEvent.click(await screen.findByRole("button", { name: /Run check/i }));
     expect(await screen.findByText(/philon-0\.2\.0 is ready\. Local-only: yes\. 3 review actions available\./)).not.toBeNull();
+  });
+});
+
+describe("reaching the about screen again", () => {
+  // The splash is deliberately a once-per-version thing, so from the second
+  // launch onwards the About button in the top bar is the only way back to
+  // what Philon promises. A dead button there means the text is simply gone.
+  beforeEach(() => localStorage.setItem("philon.splash.seen.v1", VERSION));
+
+  it("stays out of the way on a launch that has already seen this version", async () => {
+    await renderWorkspace();
+    expect(screen.queryByRole("dialog", { name: "Philon" })).toBeNull();
+  });
+
+  it("reopens the about screen from the top bar", async () => {
+    await renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: /About Philon/i }));
+    expect(screen.getByRole("dialog", { name: "Philon" })).not.toBeNull();
+  });
+
+  it("closes again on Continue", async () => {
+    await renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: /About Philon/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.queryByRole("dialog", { name: "Philon" })).toBeNull();
   });
 });

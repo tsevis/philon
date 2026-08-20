@@ -601,7 +601,7 @@ function App() {
             <button className={view === "diagnostics" ? "is-active" : ""} onClick={() => setView("diagnostics")} type="button">Diagnostics</button>
             <button className={view === "settings" ? "is-active" : ""} onClick={() => setView("settings")} type="button">Settings</button>
           </nav>
-          <div className="topbar-actions"><span className="system-status"><ShieldCheck size={15} weight="fill" /> Local only</span><button className="icon-button" type="button" title="About Philon"><Info size={18} /></button></div>
+          <div className="topbar-actions"><span className="system-status"><ShieldCheck size={15} weight="fill" /> Local only</span><button className="icon-button" type="button" title="About Philon" onClick={() => setSplashOpen(true)}><Info size={18} /></button></div>
         </header>
         {view === "workspace" && <div className="workspace-command-bar">
           <div className="job-tabs" role="tablist" aria-label="Job type"><button id="single-job-tab" role="tab" aria-controls="single-job-panel" aria-selected={tab === "single"} className={tab === "single" ? "is-active" : ""} onClick={() => setTab("single")} type="button"><FileArrowUp size={17} /> Single Job</button><button id="batch-tab" role="tab" aria-controls="batch-panel" aria-selected={tab === "batch"} className={tab === "batch" ? "is-active" : ""} onClick={() => setTab("batch")} type="button"><ListChecks size={17} /> Batch</button></div>
