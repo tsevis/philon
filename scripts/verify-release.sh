@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Run the complete unsigned-release verification locally.  Packaging is kept
+# Run the complete pre-notarization release verification locally.  Packaging is kept
 # separate: it is intentionally slow and requires no credentials, while Apple
 # Developer signing/notarization remains an owner-controlled release step.
 set -euo pipefail

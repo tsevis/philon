@@ -182,13 +182,15 @@ PHILON_VISION_INTEGRATION=1 npm run test:engine
 build-only, or test-only, and a copyleft licence on a shipped component is
 rejected rather than assumed to be intentional.
 
-To rebuild and verify the unsigned DMG in the same sequence, run
-`npm run release:verify -- --package`. This does not sign or notarize the app.
+To rebuild and verify the ad-hoc signed DMG in the same sequence, run
+`npm run release:verify -- --package`. The bundle is sealed with an ad-hoc
+signature, so `codesign --verify` passes locally; it carries no Developer ID
+and is not notarized.
 
 `npm run release:verify` and the workflow run the same checks in the same
-order, so a local run is not a weaker one. **The GitHub Actions workflows are
-currently disabled**, so verification is local until they are re-enabled with
-`gh workflow enable "Verify Philon"`. The workflow runs on macOS 15.
+order, so a local run is not a weaker one. Both workflows are enabled and run
+on macOS 15: `Verify Philon` on every push and pull request, `Package Philon`
+on a `v*` tag or a manual dispatch.
 
 Packaging and notarization require the project owner's Apple Developer
 signing credentials; no signing identity is embedded in this repository.
