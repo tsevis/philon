@@ -244,6 +244,24 @@
     },
     {
       "type": "library",
+      "name": "libc",
+      "version": "0.2.189",
+      "scope": "required",
+      "purl": "pkg:cargo/libc@0.2.189",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "libsqlite3-sys",
       "version": "0.30.1",
       "scope": "required",

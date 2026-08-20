@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::UnixStream;
+use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
@@ -159,6 +160,54 @@ fn recover_interrupted_batches(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Stop an engine process and everything it started.
+///
+/// The engine ships as a PyInstaller one-file binary, so the process Philon
+/// spawns is a bootloader that runs the real interpreter as a child of its own.
+/// Killing only the process we hold leaves that interpreter alive, reparented
+/// to launchd and still holding the engine socket: sessions have been found
+/// still running a day after their window closed.
+///
+/// SIGTERM goes first, so the bootloader can remove the temporary directory it
+/// unpacked itself into; SIGKILL settles whatever ignored it.
+fn stop_engine_process(child: &mut Child) {
+    let pid = child.id() as i32;
+    let group = unsafe { libc::getpgid(pid) };
+    let own_group = unsafe { libc::getpgrp() };
+    // Signal the group only when it is the engine's own. If setting the group
+    // at spawn ever fails, the child shares this process's group, and killing
+    // that group would take Philon down with the engine.
+    let grouped = group > 0 && group != own_group;
+    let signal = |number: i32| unsafe {
+        if grouped { libc::killpg(group, number) } else { libc::kill(pid, number) }
+    };
+
+    signal(libc::SIGTERM);
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < deadline {
+        if matches!(child.try_wait(), Ok(Some(_))) {
+            return;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    signal(libc::SIGKILL);
+    let _ = child.wait();
+}
+
+/// Stop this session's engine and remove the socket it was listening on.
+///
+/// Called when the application exits: a quit that leaves the engine running is
+/// what orphans it, and a stale socket file would otherwise be adopted by the
+/// next session's readiness check.
+fn shutdown_engine(state: &EngineState) {
+    if let Ok(mut child) = state.child.lock() {
+        if let Some(mut process) = child.take() {
+            stop_engine_process(&mut process);
+        }
+    }
+    let _ = fs::remove_file(&state.socket_path);
+}
+
 fn ensure_engine(app: &AppHandle, state: &EngineState) -> Result<(), String> {
     if state.socket_path.exists() {
         if UnixStream::connect(&state.socket_path).is_ok() {
@@ -170,7 +219,7 @@ fn ensure_engine(app: &AppHandle, state: &EngineState) -> Result<(), String> {
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     let mut child = state.child.lock().map_err(|_| "Engine worker lock failed")?;
     if let Some(mut previous) = child.take() {
-        let _ = previous.kill();
+        stop_engine_process(&mut previous);
     }
     let mut command = if cfg!(debug_assertions) {
         let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../engine/philon_engine.py");
@@ -192,6 +241,10 @@ fn ensure_engine(app: &AppHandle, state: &EngineState) -> Result<(), String> {
         // helper that the debug build uses.
         app.path().resource_dir().map(|directory| directory.join("_up_/engine/dist/philon-vision-ocr")).map_err(|error| error.to_string())?
     };
+    // The engine is spawned into its own process group so that stopping it can
+    // reach the interpreter the PyInstaller bootloader starts, without the
+    // signal ever reaching Philon itself.
+    command.process_group(0);
     let process = command.arg("--socket").arg(&state.socket_path).arg("--token").arg(&state.auth_token).arg("--vision-helper").arg(vision_helper).spawn().map_err(|error| format!("Unable to launch the local engine: {error}"))?;
     *child = Some(process);
     // The bundled Python engine can take several seconds to initialise its
@@ -639,7 +692,18 @@ async fn model_status(app: AppHandle, state: State<'_, EngineState>) -> Result<V
 
 #[cfg(test)]
 mod tests {
-    use super::{batch_status_after_run, publish_completed_batch_document, session_token};
+    use super::{batch_status_after_run, publish_completed_batch_document, session_token, stop_engine_process};
+    use std::fs;
+    use std::os::unix::process::CommandExt;
+    use std::process::Command;
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    /// Does a process still exist? Signal 0 performs the permission and
+    /// existence checks without delivering anything.
+    fn alive(pid: i32) -> bool {
+        unsafe { libc::kill(pid, 0) == 0 }
+    }
 
     #[test]
     fn batch_pause_and_cancel_hold_the_current_document_at_publication_boundary() {
@@ -667,6 +731,58 @@ mod tests {
         let first = session_token().expect("Local entropy must be readable");
         let second = session_token().expect("Local entropy must be readable");
         assert_ne!(first, second);
+    }
+
+    /// The engine is a PyInstaller one-file binary: the process Philon spawns
+    /// is a bootloader that runs the real interpreter as a child of its own.
+    /// Stopping only the process we hold leaves that grandchild alive and
+    /// reparented, still holding the engine socket, so this stands in a shell
+    /// with a background sleep for the same shape.
+    #[test]
+    fn stopping_the_engine_takes_its_grandchild_with_it() {
+        let record = std::env::temp_dir().join(format!("philon-test-grandchild-{}", std::process::id()));
+        let _ = fs::remove_file(&record);
+        let mut command = Command::new("/bin/sh");
+        command.arg("-c").arg(format!("sleep 30 & echo $! > {}; wait", record.display()));
+        command.process_group(0);
+        let mut child = command.spawn().expect("The stand-in engine must start");
+
+        // The grandchild's pid is written by the shell, so wait for the file
+        // rather than assuming how quickly it was scheduled.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let grandchild = loop {
+            if let Ok(text) = fs::read_to_string(&record) {
+                if let Ok(pid) = text.trim().parse::<i32>() {
+                    break pid;
+                }
+            }
+            assert!(Instant::now() < deadline, "The stand-in engine never reported its grandchild");
+            thread::sleep(Duration::from_millis(20));
+        };
+        assert!(alive(grandchild), "The grandchild must be running before it can be left behind");
+
+        stop_engine_process(&mut child);
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while alive(grandchild) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(20));
+        }
+        assert!(!alive(grandchild), "The grandchild outlived the process Philon spawned");
+        let _ = fs::remove_file(&record);
+    }
+
+    /// A child that shares this process's group must never be signalled by
+    /// group: that group contains the test runner, and in production it would
+    /// contain Philon itself.
+    #[test]
+    fn a_child_without_its_own_group_is_signalled_alone() {
+        let own_group = unsafe { libc::getpgrp() };
+        let mut child = Command::new("/bin/sh").arg("-c").arg("sleep 30").spawn().expect("The stand-in engine must start");
+        assert_eq!(unsafe { libc::getpgid(child.id() as i32) }, own_group, "This child is expected to share the runner's group");
+
+        stop_engine_process(&mut child);
+
+        assert!(alive(unsafe { libc::getpid() }), "Stopping a grouped-with-us child must not signal this process");
     }
 }
 
@@ -774,6 +890,13 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![run_conversion, preflight_conversion, enqueue_batch, append_batch_items, list_batch_items, latest_batch, set_batch_item_state, run_batch, list_jobs, clear_library, get_job, engine_health, apply_review, request_repair, export_conversion, model_status])
-        .run(tauri::generate_context!())
-        .expect("error while running Philon");
+        .build(tauri::generate_context!())
+        .expect("error while building Philon")
+        // Quitting is the moment the engine would otherwise be orphaned, so the
+        // application is built and run explicitly rather than through `run()`.
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                shutdown_engine(&app.state::<EngineState>());
+            }
+        });
 }
