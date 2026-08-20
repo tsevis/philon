@@ -4,7 +4,7 @@ version = "0.2.1"
 description = "Evidence-first document conversion for macOS"
 authors = ["Philon contributors"]
 edition = "2021"
-license = "Apache-2.0"
+license = "MIT"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

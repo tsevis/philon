@@ -235,4 +235,4 @@ Use the private-corpus harness in [`bench/README.md`](bench/README.md) to record
 
 ## Licence
 
-Apache-2.0. Model packs must be declared in `engine/model-manifest.json` and pass the project licence policy before becoming required dependencies.
+MIT. Model packs must be declared in `engine/model-manifest.json` and pass the project licence policy before becoming required dependencies.
