@@ -6,6 +6,12 @@
  * machine that runs it, and the shots come from the same dev server a
  * developer sees.
  *
+ * Each plate is captured at twice its committed width and then resampled down
+ * to it, so the text is supersampled rather than merely rendered small. The
+ * resize is `sips`, a macOS built-in, for the same reason the capture is raw
+ * DevTools: it adds nothing to declare. It used to be a manual step, which
+ * meant the committed plates could not be reproduced by running this script.
+ *
  * The conversion on screen is real. `src/dev/host.ts` answers with output
  * Philon's own engine produced, so a screenshot cannot flatter the interface
  * with data the program could not have made.
@@ -13,9 +19,12 @@
  * Usage:  npm run dev   (in another terminal)
  *         node scripts/make-screenshots.mjs [outputDir]
  */
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
+
+const resample = promisify(execFile);
 
 const APP = "http://localhost:1420";
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -28,13 +37,19 @@ const load = `const open = document.querySelector('.open-document-button'); if (
 const convert = `const c = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Convert'); if (c && !c.disabled) c.click();`;
 const view = (name) => `[...document.querySelectorAll('.main-tabs button')].find(b => b.textContent.trim().startsWith('${name}'))?.click();`;
 
-/** Each shot: where to point the viewport, and what to do before the click. */
+/**
+ * Each shot: where to point the viewport, what to do before the capture, and
+ * the width the committed plate is stored at. `committed` is the longest edge
+ * passed to `sips -Z`, so a plate keeps its aspect ratio; the splash is a
+ * dialog that reads fine at half the capture, while the workspace carries
+ * three panes of small type and is kept larger.
+ */
 const SHOTS = [
-  { name: "splash", width: 1280, height: 760, steps: [`localStorage.removeItem('${SEEN_KEY}')`, "location.reload()"], settle: 1400 },
-  { name: "workspace", width: 1680, height: 1000, steps: [dismiss, load, convert], settle: 1800 },
-  { name: "models", width: 1680, height: 700, steps: [view("Models")], settle: 900 },
-  { name: "settings", width: 1680, height: 980, steps: [view("Settings")], settle: 700 },
-  { name: "library", width: 1680, height: 700, steps: [view("Library")], settle: 900 },
+  { name: "splash", width: 1280, height: 760, committed: 1280, steps: [`localStorage.removeItem('${SEEN_KEY}')`, "location.reload()"], settle: 1400 },
+  { name: "workspace", width: 1680, height: 1000, committed: 2000, steps: [dismiss, load, convert], settle: 1800 },
+  { name: "models", width: 1680, height: 700, committed: 1800, steps: [view("Models")], settle: 900 },
+  { name: "settings", width: 1680, height: 980, committed: 1800, steps: [view("Settings")], settle: 700 },
+  { name: "library", width: 1680, height: 700, committed: 1800, steps: [view("Library")], settle: 900 },
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -102,7 +117,8 @@ async function main() {
       const { data } = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
       const file = join(OUT, `${shot.name}.png`);
       await writeFile(file, Buffer.from(data, "base64"));
-      console.log(`${file}  ${shot.width}x${shot.height} @2x`);
+      await resample("/usr/bin/sips", ["-Z", String(shot.committed), file]);
+      console.log(`${file}  captured ${shot.width}x${shot.height} @2x, stored at ${shot.committed}px`);
     }
     socket.close();
   } finally {
