@@ -233,6 +233,30 @@ review rather than inventing image alt text.
 
 Use the private-corpus harness in [`bench/README.md`](bench/README.md) to record local runs, including cold/warm timing, cache use, source-map coverage, output-contract failures, and optional private-gold accuracy metrics. Public claims against Marker or Docling remain blocked until the same version-pinned corpus, hardware, and methodology have been run.
 
+## Releases
+
+A version number here describes the application. The engine contract and the IR
+version are deliberately separate and both remain at 0.2.0, so a document
+converted by any 0.2.x build carries the same evidence shape.
+
+**0.2.2** — Philon stops its engine when it quits. The engine was spawned and
+never reaped: a `Child` does not kill on drop, and the application was run
+without an exit handler, so an engine could outlive the window that started it
+by a day and still hold its socket. Killing the process Philon holds is not
+enough either, because the packaged engine is a PyInstaller one-file binary
+whose bootloader runs the real interpreter as a child of its own. The engine
+now runs in its own process group, and shutting down signals that group:
+SIGTERM first, so the bootloader can remove what it unpacked, then SIGKILL for
+anything that ignored it.
+
+**0.2.1** — The About button in the top bar opens the screen it names. It had
+no handler at all, so once the splash had been seen for a version there was no
+way back to what Philon promises. The macOS bundle is now sealed with an ad-hoc
+signature: `codesign --verify` passes on it instead of reporting an unsealed
+bundle. It remains un-notarized and carries no Developer ID, so Gatekeeper
+still refuses it on a machine that did not build it. The project is licensed
+MIT.
+
 ## Licence
 
 MIT. Model packs must be declared in `engine/model-manifest.json` and pass the project licence policy before becoming required dependencies.
