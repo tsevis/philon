@@ -18,13 +18,17 @@ jobs:
         with: { python-version: "3.10" }
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
-      - run: python3 -m pip install -r engine/requirements-build.txt
+      # scripts/package-engine.sh and the test:engine script both use
+      # .venv/bin/python, so CI builds the same environment a developer has
+      # rather than a system one the scripts cannot see.
+      - run: python3 -m venv .venv
+      - run: .venv/bin/pip install --requirement engine/requirements-build.txt
       - run: npm run license:check
       - run: npm run sbom:check
       - run: npm run local-only:check
       - run: npm run test:ui
       - run: npm run tauri:package
-      - run: PHILON_VISION_INTEGRATION=1 python3 -m unittest engine/test_engine.py engine/test_socket.py engine/test_fuzz.py bench/test_run.py -v
+      - run: PHILON_VISION_INTEGRATION=1 npm run test:engine
       - uses: actions/upload-artifact@v4
         with:
           name: Philon-unsigned-macos-arm64
