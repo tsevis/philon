@@ -12,7 +12,7 @@ needs more than that, so a corner scrim is burned in here where the type
 actually lands, leaving the rest of the engraving at its own value.
 
 Usage:
-    python scripts/make-splash-art.py assets/philon.png src/assets/splash-banner.jpg
+    python scripts/make-splash-art.py assets/philon.jpg src/assets/splash-banner.jpg
 """
 
 from __future__ import annotations
