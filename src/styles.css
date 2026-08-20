@@ -49,7 +49,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid #74d2a2; outline-offs
 .history-button, .text-button { display: inline-flex; align-items: center; gap: 7px; padding: 0; color: #9daca5; font-size: 12px; background: transparent; border: 0; }
 .history-button:hover, .text-button:hover { color: #e5eee9; }
 
-.workspace { min-width: 0; padding: 32px 38px 36px; background: radial-gradient(circle at 80% 0%, rgba(34, 79, 59, .27), transparent 32%), #111817; }
+.workspace { min-width: 0; padding: 32px 38px 44px; background: radial-gradient(circle at 80% 0%, rgba(34, 79, 59, .27), transparent 32%), #111817; }
 .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 28px; max-width: 1600px; margin: 0 auto 28px; }
 .eyebrow { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: #78cfa1; font-size: 11px; font-weight: 680; letter-spacing: .04em; text-transform: uppercase; }
 h1, h2, h3, p { margin-top: 0; }
@@ -484,4 +484,15 @@ h1 { margin: 3px 0 0; color: #1d1d1f; font-size: 24px; font-weight: 700; letter-
   .splash-legal summary:hover { color: #f5f5f7; }
   .splash-footer { background: #1c1c1e; border-top-color: rgba(235, 235, 245, .13); }
   .splash-footer a { color: var(--accent); }
+}
+
+/* The maker's mark, at the foot of the window on every view — the same
+   placement and the same 20px height the macOS status bar uses. Positioned
+   against the shell rather than placed in one panel's footer, so it does not
+   disappear the moment the workspace changes view. */
+.makers-mark { position: fixed; bottom: 9px; left: 13px; z-index: 5; display: inline-flex; padding: 3px; line-height: 0; border-radius: 6px; opacity: .55; transition: opacity .16s ease, background .16s ease; }
+.makers-mark:hover { background: rgba(60, 60, 67, .1); opacity: 1; }
+.makers-mark img { display: block; width: 20px; height: 20px; }
+@media (prefers-color-scheme: dark) {
+  .makers-mark:hover { background: rgba(235, 235, 245, .12); }
 }
