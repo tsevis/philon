@@ -1,0 +1,578 @@
+{
+  "$schema": "https://cyclonedx.org/schema/bom-1.5.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:3b63629a-6bed-4fea-b301-0830c6c21841",
+  "version": 2,
+  "metadata": {
+    "component": {
+      "type": "application",
+      "name": "Philon",
+      "version": "0.2.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "philon:distribution-values",
+        "value": "shipped, build-only, test-only"
+      },
+      {
+        "name": "philon:note",
+        "value": "Every component carries a philon:distribution property. Only 'shipped' components reach a user's Mac; 'build-only' and 'test-only' components are scoped 'excluded' and are never bundled."
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "pypdfium2",
+      "version": "5.13.0",
+      "scope": "required",
+      "purl": "pkg:pypi/pypdfium2@5.13.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pypdf",
+      "version": "6.16.1",
+      "scope": "required",
+      "purl": "pkg:pypi/pypdf@6.16.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "Pillow",
+      "version": "12.3.0",
+      "scope": "required",
+      "purl": "pkg:pypi/pillow@12.3.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "HPND"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "framework",
+      "name": "tauri",
+      "version": "2.11.5",
+      "scope": "required",
+      "purl": "pkg:cargo/tauri@2.11.5",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "react",
+      "version": "18.3.1",
+      "scope": "required",
+      "purl": "pkg:npm/react@18.3.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "react-dom",
+      "version": "18.3.1",
+      "scope": "required",
+      "purl": "pkg:npm/react-dom@18.3.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@phosphor-icons/react",
+      "version": "2.1.10",
+      "scope": "required",
+      "purl": "pkg:npm/%40phosphor-icons/react@2.1.10",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/api",
+      "version": "2.11.1",
+      "scope": "required",
+      "purl": "pkg:npm/%40tauri-apps/api@2.11.1",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/plugin-dialog",
+      "version": "2.7.2",
+      "scope": "required",
+      "purl": "pkg:npm/%40tauri-apps/plugin-dialog@2.7.2",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "chrono",
+      "version": "0.4.45",
+      "scope": "required",
+      "purl": "pkg:cargo/chrono@0.4.45",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "rusqlite",
+      "version": "0.32.1",
+      "scope": "required",
+      "purl": "pkg:cargo/rusqlite@0.32.1",
+      "description": "SQLite bindings built with the bundled feature.",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "libsqlite3-sys",
+      "version": "0.30.1",
+      "scope": "required",
+      "purl": "pkg:cargo/libsqlite3-sys@0.30.1",
+      "description": "Compiles and links the vendored SQLite amalgamation.",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "serde",
+      "version": "1.0.229",
+      "scope": "required",
+      "purl": "pkg:cargo/serde@1.0.229",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "serde_json",
+      "version": "1.0.151",
+      "scope": "required",
+      "purl": "pkg:cargo/serde_json@1.0.151",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "tauri-plugin-dialog",
+      "version": "2.7.2",
+      "scope": "required",
+      "purl": "pkg:cargo/tauri-plugin-dialog@2.7.2",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "SQLite",
+      "version": "3.46.0",
+      "scope": "required",
+      "purl": "pkg:generic/sqlite@3.46.0",
+      "description": "Vendored amalgamation compiled into the host binary by libsqlite3-sys.",
+      "licenses": [
+        {
+          "license": {
+            "id": "blessing"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "shipped"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "name": "PyInstaller",
+      "version": "6.18.0",
+      "scope": "excluded",
+      "purl": "pkg:pypi/pyinstaller@6.18.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0-only"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "build-only"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "tauri-build",
+      "version": "2.6.3",
+      "scope": "excluded",
+      "purl": "pkg:cargo/tauri-build@2.6.3",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "build-only"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "name": "@tauri-apps/cli",
+      "version": "2.11.4",
+      "scope": "excluded",
+      "purl": "pkg:npm/%40tauri-apps/cli@2.11.4",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "build-only"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "name": "typescript",
+      "version": "5.9.3",
+      "scope": "excluded",
+      "purl": "pkg:npm/typescript@5.9.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "build-only"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "name": "vite",
+      "version": "5.4.21",
+      "scope": "excluded",
+      "purl": "pkg:npm/vite@5.4.21",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "build-only"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@vitejs/plugin-react",
+      "version": "4.7.0",
+      "scope": "excluded",
+      "purl": "pkg:npm/%40vitejs/plugin-react@4.7.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "build-only"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@types/react",
+      "version": "18.3.31",
+      "scope": "excluded",
+      "purl": "pkg:npm/%40types/react@18.3.31",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "build-only"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@types/react-dom",
+      "version": "18.3.7",
+      "scope": "excluded",
+      "purl": "pkg:npm/%40types/react-dom@18.3.7",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "build-only"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "name": "vitest",
+      "version": "2.1.9",
+      "scope": "excluded",
+      "purl": "pkg:npm/vitest@2.1.9",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "test-only"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "jsdom",
+      "version": "29.1.1",
+      "scope": "excluded",
+      "purl": "pkg:npm/jsdom@29.1.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "test-only"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@testing-library/react",
+      "version": "16.3.2",
+      "scope": "excluded",
+      "purl": "pkg:npm/%40testing-library/react@16.3.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "test-only"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@testing-library/dom",
+      "version": "10.4.1",
+      "scope": "excluded",
+      "purl": "pkg:npm/%40testing-library/dom@10.4.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "philon:distribution",
+          "value": "test-only"
+        }
+      ]
+    }
+  ]
+}

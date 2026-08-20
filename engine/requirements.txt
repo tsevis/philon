@@ -1,0 +1,6 @@
+# Optional production adapters. The engine remains importable without them for
+# deterministic protocol and renderer tests.
+pypdfium2>=4.30.0
+pypdf>=5.0.0
+Pillow>=10.0.0
+

@@ -1,0 +1,36 @@
+name: Package Philon
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  package:
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.10" }
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: python3 -m pip install -r engine/requirements-build.txt
+      - run: npm run license:check
+      - run: npm run sbom:check
+      - run: npm run local-only:check
+      - run: npm run test:ui
+      - run: npm run tauri:package
+      - run: PHILON_VISION_INTEGRATION=1 python3 -m unittest engine/test_engine.py engine/test_socket.py engine/test_fuzz.py bench/test_run.py -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Philon-unsigned-macos-arm64
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+
+# A notarized release needs an Apple Developer certificate, keychain setup,
+# Apple ID/app-specific password, and notary profile supplied by the owner.
+# This workflow intentionally produces an unsigned artefact until those secrets
+# are configured in a separate protected release environment.
