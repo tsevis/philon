@@ -185,7 +185,13 @@ rejected rather than assumed to be intentional.
 To rebuild and verify the unsigned DMG in the same sequence, run
 `npm run release:verify -- --package`. This does not sign or notarize the app.
 
-The GitHub Actions workflow runs the same checks on macOS 15. Packaging and notarization require the project owner's Apple Developer signing credentials; no signing identity is embedded in this repository.
+`npm run release:verify` and the workflow run the same checks in the same
+order, so a local run is not a weaker one. **The GitHub Actions workflows are
+currently disabled**, so verification is local until they are re-enabled with
+`gh workflow enable "Verify Philon"`. The workflow runs on macOS 15.
+
+Packaging and notarization require the project owner's Apple Developer
+signing credentials; no signing identity is embedded in this repository.
 
 ## Outputs
 

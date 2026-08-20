@@ -11,9 +11,16 @@ npm run license:check
 npm run sbom:check
 npm run local-only:check
 npm run test:ui
-npm run test:engine
-npm run test:bench
 npm run build
+
+# The engine bundle is built before the engine suite runs, so the Apple Vision
+# helper exists and the two integration tests execute rather than skipping.
+# This is the same order CI uses; without it a local run is quietly weaker than
+# the one that gates a release.
+npm run engine:package
+PHILON_VISION_INTEGRATION=1 npm run test:engine
+npm run test:bench
+
 cargo test --manifest-path src-tauri/Cargo.toml
 cargo check --manifest-path src-tauri/Cargo.toml
 
