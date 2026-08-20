@@ -1,18 +1,98 @@
+<div align="center">
+
+<img src="docs/screenshots/splash.png" alt="The Philon splash screen: an engraved scholar holding a closed book, with the application name and version" width="640">
+
 # Philon
 
-Philon is a macOS-first, local-first document conversion workspace. It begins with native source structure, retains evidence for every emitted block, and marks uncertainty instead of silently inventing text.
+**Documents converted with their evidence intact.**
 
-## Included in this foundation
+A macOS-first, local-first document conversion workspace. Philon begins with a
+document's own structure, keeps the evidence for every block it emits, and
+marks uncertainty instead of quietly inventing text.
 
-- Tauri 2 desktop shell for macOS with a Single Job and Batch workspace.
-- Local authenticated Unix-socket bridge from the Rust host to the Python engine.
-- SQLite-backed conversion history.
-- A versioned Philon IR with source method, confidence, validation record, warnings, and stable block IDs.
-- PDFium-first extraction with a development fallback, image intake, deterministic Markdown/HTML/IR/chunk/evidence exports, hashing, and content-addressed caching.
-- Intake preflight that rejects invalid signatures, empty files, encrypted PDFs, and documents beyond the V1 size/page limits before extraction.
-- Image intake also checks container integrity, single-frame status, and a 100-megapixel limit before handing anything to OCR.
-- Explicit local-only policy. Apple Vision handles on-device OCR for image inputs and textless PDF pages; unavailable recognition never causes invented text or VLM output.
-- Original application icon at `src-tauri/icons/icon.png`.
+</div>
+
+---
+
+## Why it is called that
+
+Philon of Alexandria spent his life reading one tradition in the language of
+another. Writing in Greek in the first century, he worked through the Hebrew
+scriptures a passage at a time — quoting the line, then drawing out what he
+took it to mean — and he held that the literal sense had to stand even where
+the allegory moved him most, against contemporaries content to let the reading
+replace the text.
+
+A conversion is a reading. A PDF becomes Markdown only because something
+decided what was a heading, what was a table, and what the letters were. Philon
+keeps the source beside the reading, and marks what it cannot settle instead of
+smoothing it into fluent text nobody can go back and verify.
+
+## The workspace
+
+![The Philon workspace: the source page, the readable conversion, and the evidence panel side by side](docs/screenshots/workspace.png)
+
+Three panels, always together. The **source** as Philon read it, the
+**conversion** it produced, and the **evidence** behind the selected block —
+which method read it, how confident that reading is, whether the source region
+was measured, and what the Verified checks found. Selecting a block in either
+of the first two panels moves the other two with it.
+
+The warnings on the right are not decoration. `READING ORDER AMBIGUOUS` means
+the measured geometry moved upward between emitted blocks: possibly a
+multi-column transition. Philon keeps the source order, says so, and asks for
+review rather than guessing.
+
+## What it does
+
+- **Evidence for every block.** A versioned Philon IR carries source method,
+  confidence, validation record, warnings, measured source geometry, and stable
+  block IDs.
+- **Native structure first.** PDFium-first extraction, with Apple Vision for
+  on-device recognition of images and textless pages. A page that cannot be read
+  is reported, never invented.
+- **Three profiles.** `Fast` is native-text only and never invokes OCR.
+  `Balanced` is the default, using Apple Vision only for image or textless-PDF
+  input. `Verified` adds deterministic source-geometry, duplicate-content, and
+  reading-order ambiguity checks; it reports uncertainty for review rather than
+  changing source order.
+- **Intake preflight.** Invalid signatures, empty files, encrypted PDFs, and
+  documents beyond the V1 size and page limits are refused before extraction.
+  Images are checked for container integrity, single-frame status, and a
+  100-megapixel ceiling before anything reaches OCR.
+- **Local review as provenance.** Accepting, editing, or restoring a candidate
+  is recorded as a reversible decision, and the original candidate is retained.
+- **Single Job and Batch.** Batch items pause and cancel at a document boundary,
+  and an interrupted batch is still there after a restart.
+
+### Local model access
+
+![The Models pane: native extraction built in, Apple Vision available, and a local repair pack blocked by policy](docs/screenshots/models.png)
+
+Optional model packs stay off until you enable them, and a pack whose licence
+has not been approved cannot be enabled at all — the control is disabled and
+says why. The pane reports readiness, missing runtimes, and policy blocks
+**without loading a model or making a network request**.
+
+### History and preferences
+
+<img src="docs/screenshots/library.png" alt="The Library pane listing locally retained conversions" width="49%"> <img src="docs/screenshots/settings.png" alt="The Settings pane with conversion profile, cache behaviour, and output format preferences" width="49%">
+
+Conversion history is a local SQLite database on your Mac. Removing it removes
+the records, not the files you exported. Output formats are chosen once and
+apply to every new conversion.
+
+## Local only
+
+The desktop host launches `engine/philon_engine.py` as a local process and
+talks to it over a `0600` Unix-domain socket authenticated with a per-session
+token. There is no local HTTP server and no cloud credential. `npm run
+local-only:check` is a source-level gate that fails the build if an HTTP client
+reaches the runtime sources, so this stays true rather than merely being
+intended.
+
+Your documents are yours. Philon never sends a document, a fragment, or a
+filename anywhere.
 
 ## Deliberate V1 boundaries
 
@@ -47,7 +127,13 @@ python3 -m venv .venv
 npm run tauri dev
 ```
 
-The desktop host launches `engine/philon_engine.py` as a local process and communicates through a `0600` Unix-domain socket. No local HTTP server or cloud credential is required.
+To work on the interface without building the desktop shell, `npm run dev`
+serves the workspace with a development host that answers with a real
+conversion recorded in `src/dev/conversion.json`. It is installed only under
+`import.meta.env.DEV` and never reaches a packaged build.
+
+The screenshots above are produced by `node scripts/make-screenshots.mjs`
+against that dev server, so they can be regenerated rather than hand-collected.
 
 ## Verification
 
