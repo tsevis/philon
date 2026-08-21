@@ -496,3 +496,17 @@ h1 { margin: 3px 0 0; color: #1d1d1f; font-size: 24px; font-weight: 700; letter-
 @media (prefers-color-scheme: dark) {
   .makers-mark:hover { background: rgba(235, 235, 245, .12); }
 }
+
+/* Shown in place of the workspace when a surface fails to render. Styled with
+   the frame's own tokens so a failure still looks like part of the app. */
+.render-failure { display: grid; justify-items: center; gap: 13px; max-width: 620px; padding: 40px 30px; margin: 60px auto; color: #1d1d1f; text-align: center; background: #fff; border: 1px solid rgba(60, 60, 67, .18); border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, .08); }
+.render-failure svg { color: #b3261e; }
+.render-failure h1 { margin: 0; font-size: 19px; letter-spacing: -.02em; }
+.render-failure p { margin: 0; color: #6e6e73; font-size: 13px; line-height: 1.55; }
+.render-failure pre { max-width: 100%; margin: 0; padding: 11px 13px; overflow-x: auto; color: #3a3a3c; font: 12px/1.5 "SF Mono", Menlo, monospace; text-align: left; white-space: pre-wrap; background: #f5f5f7; border-radius: 8px; }
+@media (prefers-color-scheme: dark) {
+  .render-failure { color: #f5f5f7; background: #2c2c2e; border-color: rgba(235, 235, 245, .16); box-shadow: none; }
+  .render-failure svg { color: #ff6b60; }
+  .render-failure p { color: #aeaeb2; }
+  .render-failure pre { color: #ebebf5; background: #1c1c1e; }
+}

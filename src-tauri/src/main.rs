@@ -51,8 +51,10 @@ struct ReviewAction {
     candidate_index: Option<usize>,
 }
 
+/// Serialised snake_case, like every other payload the workspace receives:
+/// an engine document arrives that way and is passed through untouched, so a
+/// camelCased record beside it would be read as a record with no fields.
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct JobHistory {
     id: String,
     created_at: String,
@@ -63,8 +65,11 @@ struct JobHistory {
     payload: Option<Value>,
 }
 
+/// Serialised snake_case, for the reason given above `JobHistory`. This one
+/// also carries a converted document verbatim in `result`, so renaming the
+/// fields around it would leave a record camelCased on the outside and
+/// snake_cased on the inside.
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct BatchItem {
     id: String,
     batch_id: String,
@@ -692,7 +697,7 @@ async fn model_status(app: AppHandle, state: State<'_, EngineState>) -> Result<V
 
 #[cfg(test)]
 mod tests {
-    use super::{batch_status_after_run, publish_completed_batch_document, session_token, stop_engine_process};
+    use super::{batch_status_after_run, publish_completed_batch_document, session_token, stop_engine_process, BatchItem, JobHistory};
     use std::fs;
     use std::os::unix::process::CommandExt;
     use std::process::Command;
@@ -703,6 +708,43 @@ mod tests {
     /// existence checks without delivering anything.
     fn alive(pid: i32) -> bool {
         unsafe { libc::kill(pid, 0) == 0 }
+    }
+
+    /// The workspace reads these records by the names the engine uses. A
+    /// serialisation that renamed the fields would not fail here or in the
+    /// TypeScript: every field would simply arrive undefined, and the queue
+    /// would ask an absent path for its file name while rendering.
+    #[test]
+    fn a_queued_document_reaches_the_workspace_under_the_names_it_reads() {
+        let item = BatchItem {
+            id: "batch-1-1".into(),
+            batch_id: "batch-1".into(),
+            source_path: "/docs/paper.pdf".into(),
+            status: "queued".into(),
+            error: None,
+            result: None,
+            created_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: "2026-01-01T00:00:00Z".into(),
+        };
+        let wire = serde_json::to_value(&item).expect("A batch item must serialise");
+        for field in ["batch_id", "source_path", "created_at", "updated_at"] {
+            assert!(wire.get(field).is_some(), "batch item lost {field} on the wire: {wire}");
+        }
+    }
+
+    #[test]
+    fn a_history_record_reaches_the_workspace_under_the_names_it_reads() {
+        let record = JobHistory {
+            id: "job-1".into(),
+            created_at: "2026-01-01T00:00:00Z".into(),
+            profile: "Balanced".into(),
+            status: "completed".into(),
+            documents: 1,
+            warnings: 0,
+            payload: None,
+        };
+        let wire = serde_json::to_value(&record).expect("A history record must serialise");
+        assert!(wire.get("created_at").is_some(), "history record lost created_at on the wire: {wire}");
     }
 
     #[test]
