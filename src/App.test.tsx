@@ -259,6 +259,26 @@ describe("library", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Remove 1 job/i }));
     expect(await screen.findByText(/Exported files were kept/i)).not.toBeNull();
   });
+
+  /// The Library dated every job "Invalid Date" for as long as the host sent
+  /// `createdAt` and this read `created_at`. The date is asserted here, so a
+  /// record that loses its timestamp again fails a test rather than quietly
+  /// printing a JavaScript artefact into the window.
+  it("dates a job by the time the host recorded", async () => {
+    respondWith({ list_jobs: [job] });
+    await renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: /^Library/ }));
+    const dated = new Date("2026-01-01T00:00:00Z").toLocaleString();
+    expect(await screen.findByText(new RegExp(dated.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).not.toBeNull();
+  });
+
+  it("never dates a job \"Invalid Date\"", async () => {
+    respondWith({ list_jobs: [{ ...job, created_at: undefined }] });
+    await renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: /^Library/ }));
+    expect(await screen.findByText(/Date not recorded/)).not.toBeNull();
+    expect(screen.queryByText(/Invalid Date/)).toBeNull();
+  });
 });
 
 describe("diagnostics", () => {
