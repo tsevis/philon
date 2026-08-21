@@ -26,7 +26,7 @@ cargo check --manifest-path src-tauri/Cargo.toml
 
 if [[ "${1:-}" == "--package" ]]; then
   npm run tauri:package
-  DMG_PATH="${ROOT_DIR}/src-tauri/target/release/bundle/dmg/Philon_0.2.4_aarch64.dmg"
+  DMG_PATH="${ROOT_DIR}/src-tauri/target/release/bundle/dmg/Philon_0.2.5_aarch64.dmg"
   [[ -f "${DMG_PATH}" ]] || { echo "Expected DMG was not produced: ${DMG_PATH}" >&2; exit 1; }
   hdiutil verify "${DMG_PATH}"
   shasum -a 256 "${DMG_PATH}"
