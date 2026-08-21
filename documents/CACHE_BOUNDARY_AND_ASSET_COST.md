@@ -1,8 +1,10 @@
-# The cache is drawn around the cheapest phase
+# The cache was drawn around the cheapest phase
 
 Measured 2026-08-21, from the first multi-document benchmark run. Two
-observations came out of that run and both have the same cause, so they are
-recorded together.
+observations came out of that run and both had the same cause, so they are
+recorded together. The cause is now fixed; the measurement is kept because it
+is what the fix was aimed at, and because proving the fix surfaced a second
+defect that is still open.
 
 ## What the run showed
 
@@ -48,18 +50,62 @@ The cost is also inverted from what the numbers suggest: the paper with the
 most pages of text is the cheapest to convert, and the one with the most
 embedded images is 4.8x dearer per page.
 
-## What this does not say
+## Fixed
 
-No fix is proposed here and none was attempted. Caching the rasterised
-previews and the extracted assets against the same content hash is the obvious
-direction, but it changes what the cache is responsible for and how much disk
-it holds, and that is a design decision rather than a tuning one. The
-measurement is recorded so it is made deliberately.
+Both expensive phases now reuse their own output. Their destination is already
+content-addressed (`slug-hash12-profile`), so a second conversion of the same
+bytes was regenerating work sitting on disk beside it. Each phase writes a
+manifest **atomically after it succeeds**, recording the source path and the
+sha256 of every file it produced; reuse happens only when that manifest reads
+back and every file still hashes to what it claims. An interrupted run leaves
+no manifest and therefore cannot be mistaken for a finished one.
 
-Two smaller things noticed in passing, neither investigated: asset extraction
-emits `Fax4Decode: Bad code word` on a CCITT image in `029-039`, and
-`render_source_previews` runs whenever `machine`, `html` or `assets` is
-requested, which is most of the time.
+| id | cold before | cold after | warm before | warm after | warm saving |
+|---|---|---|---|---|---|
+| 029-039 | 4,430 | 3,896 | 3,515 | **106** | 20.7% → **97.3%** |
+| 267-271 | 2,542 | 2,620 | 2,432 | **68** | 4.3% → **97.4%** |
+| 1056a | 19,248 | 19,553 | 19,106 | **304** | 0.7% → **98.4%** |
+
+`1056a` reconverts 63x faster. The cold column is unchanged: the bench's cold
+figures are noisy (the same build measured 19,248, 19,484, 23,171 and 24,318 ms
+on that document), so the added cost was measured directly instead — hashing
+every artifact for the manifests totals **266 ms across 331 files, about 1%**.
+
+Reuse is equivalent to recomputation, not merely close to it. A conversion that
+reuses and one that recomputes from scratch produce byte-identical trees once
+two things are set aside: absolute paths recorded in manifests, which differ
+because the two arms used different roots, and timestamps.
+
+`bypass` and `refresh` still recompute everything, so a caller can always
+demand the work be done again. A truncated asset extraction replays its
+`ASSET_EXTRACTION_LIMIT` warning from the manifest, because reusing the files
+without it would quietly turn a bounded export into a complete-looking one.
+
+## Open: one asset does not extract reproducibly
+
+Proving the above surfaced a separate defect, present with or without caching.
+`029-039` carries a CCITT fax TIFF that emits `Fax4Decode: Bad code word`, and
+**three fresh extractions produce three different sha256 values** for it:
+
+    asset-0014: 1d542a40c2a9, 6332b9a8be8c, 2e3704ff02be
+
+The control runs `extract_native_pdf_assets` directly with `reuse=False`, so no
+caching is involved. A failed decode appears to leave part of the buffer
+undefined and it is written out regardless.
+
+This matters beyond tidiness: `bytes_sha256` is provenance. An asset whose hash
+changes every run makes the output manifest unreproducible and that asset's
+evidence meaningless, and the Markdown reference embeds the hash in its
+filename, so the export differs run to run. Caching now hides it — reuse keeps
+whichever copy was written first — which makes recording it here more important
+rather than less.
+
+Not fixed: it needs the decode failure to be detected rather than inferred from
+a message on stderr, and that is a different piece of work.
+
+Also still unexamined: `render_source_previews` runs whenever `machine`, `html`
+or `assets` is requested, which is most of the time, and was 51% of the cold
+cost on `029-039`.
 
 ## Reproducing it
 
