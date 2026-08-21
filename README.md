@@ -266,6 +266,14 @@ That second half matters more than it looks. The text rules are ASCII-Latin, so
 a Greek, Cyrillic or accented heading could never be a heading in any profile,
 and neither could an English one ending in `?` or containing `&`.
 
+The measurement now also says *no*, which it never did before. A short line
+starting with a capital and ending mid-clause reads exactly like a heading — an
+author line, an affiliation, a keyword list — and the text rule promoted all
+three. Where the page sets such a line in the plain body face, it has already
+answered the question, and a guess from the characters no longer overrules a
+measurement of the type. A leading section number still wins, because that is
+structure the source states outright.
+
 The segmenter was the larger fault. It split only on a vertical gap wider than
 `max(10.0, 1.15 x line height)`, and a heading is set closer to the text it
 heads than to the text above it — so on a two-column paper *every* inter-line
