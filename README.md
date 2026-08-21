@@ -249,6 +249,15 @@ A version number here describes the application. The engine contract and the IR
 version are deliberately separate and both remain at 0.2.0, so a document
 converted by any 0.2.x build carries the same evidence shape.
 
+**0.2.4** — A title that wraps is a heading again. 0.2.3 required a heading to
+be a single line, which kept prose out of the heading set but lost the titles
+long enough to wrap. The page measures every line it extracts, so the decision
+is made from that rather than guessed: a block of up to three lines is a
+heading when its lines are set at least 1.25x the median line on the same page,
+which is above the 1.15x a subheading commonly uses. A page with too few lines
+to have a median, and an OCR page that measures no line boxes, keep the
+single-line rule.
+
 **0.2.3** — A heading has to be a line of its own. `classify_block` judged a
 block by its first line — capitalised, under a hundred characters, no full stop
 — and the first line of ordinary prose is all three, because it ends mid-clause.
