@@ -1,8 +1,32 @@
 name: Verify Philon
 
 on:
+  # Branches only. A bare `push` also fires on tag pushes, so cutting a release
+  # ran this workflow twice against the same commit: once for main, once for
+  # the tag that points at it.
   push:
+    branches: ["**"]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "documents/**"
+      - "LICENSE"
+      - ".gitignore"
+  # Spelled out twice rather than shared through a YAML anchor: GitHub's
+  # workflow parser does not support anchors.
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "documents/**"
+      - "LICENSE"
+      - ".gitignore"
+
+# A macos-15 minute is billed at ten times the clock on a private repository,
+# so a superseded run is worth cancelling rather than finishing.
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:

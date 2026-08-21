@@ -194,6 +194,11 @@ this private repository is billed for at ten times the wall-clock minutes, and
 verification does not depend on them. Re-enable either with
 `gh workflow enable "Verify Philon"`.
 
+They are cheaper than they were if you do: `Verify Philon` now runs on branch
+pushes only, so a tag no longer starts a second identical run, and it skips
+pushes that touch nothing but prose. Both workflows cancel or queue per ref
+rather than piling up.
+
 `npm run release:verify -- --package` additionally produces and checksums the
 DMG, which is what `Package Philon` uploads when it is enabled.
 

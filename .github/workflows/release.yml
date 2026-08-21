@@ -5,6 +5,13 @@ on:
   push:
     tags: ["v*"]
 
+# Path filters are deliberately absent: a tag means package this commit, and
+# GitHub does not evaluate path filters for tag pushes in any case. Packaging
+# is not cancelled when superseded, because a tag names one specific artefact.
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   package:
     runs-on: macos-15
