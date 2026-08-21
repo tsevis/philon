@@ -266,13 +266,34 @@ That second half matters more than it looks. The text rules are ASCII-Latin, so
 a Greek, Cyrillic or accented heading could never be a heading in any profile,
 and neither could an English one ending in `?` or containing `&`.
 
+Measured against Marker on three papers: **100% recall at 100% precision**,
+**100% at 100%** (its one disagreement is a heading Marker itself missed and
+Philon found — same bold face as the section Marker did mark), and **87% at
+95%**. The three headings still missed on the third paper are set on the same
+line as the text they head (`CCS Concepts • Computing methodologies…`), which
+line-level segmentation cannot separate.
+
 The measurement now also says *no*, which it never did before. A short line
 starting with a capital and ending mid-clause reads exactly like a heading — an
 author line, an affiliation, a keyword list — and the text rule promoted all
 three. Where the page sets such a line in the plain body face, it has already
 answered the question, and a guess from the characters no longer overrules a
 measurement of the type. A leading section number still wins, because that is
-structure the source states outright.
+structure the source states outright — and only a *bolder* face grants one,
+since a face that merely differs from the body face is as likely to be italic,
+which is emphasis. A defined term opening a definition and a cited title inside
+a bibliography entry are both italic and both used to be promoted.
+
+Two rules carry the cases no face can reach. A face change that plainly falls
+mid-sentence no longer splits the paragraph, because an italic term opening a
+definition changes face mid-clause and cutting there left the first half looking
+exactly like a heading. And a line that is a section number followed by a short
+capitalised phrase stands alone as its own block, because some papers set a
+subsection in the plain body face at the body size where no measurement can
+separate it; it may wrap onto a second line rather than orphan it. That rule is
+kept strict — a numbered list item, an equation fragment and a bibliography entry
+opening with a year all match a looser one, and each is common enough to swamp
+the real headings.
 
 The segmenter was the larger fault. It split only on a vertical gap wider than
 `max(10.0, 1.15 x line height)`, and a heading is set closer to the text it
