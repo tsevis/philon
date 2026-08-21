@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import ctypes
 import glob
 import hashlib
 import hmac
@@ -177,6 +178,7 @@ def preflight_input(path: Path) -> dict[str, Any]:
     if suffix == ".pdf":
         if not signature.startswith(b"%PDF-"):
             raise ValueError("PDF signature is invalid. Philon did not send this file to a parser.")
+        encryption = "none"
         try:
             from pypdf import PdfReader  # type: ignore
 
@@ -185,7 +187,15 @@ def preflight_input(path: Path) -> dict[str, Any]:
             try:
                 reader = PdfReader(str(path), strict=False)
                 if reader.is_encrypted:
-                    raise ValueError("Encrypted PDFs are unsupported in V1. Remove encryption locally and try again.")
+                    # A publisher PDF is commonly "encrypted" with an EMPTY user
+                    # password: it carries permission flags but opens for anyone,
+                    # and PDFium reads it without being given a password at all.
+                    # Refusing it would refuse a document the user can already
+                    # read, so the empty password is tried and the outcome is
+                    # recorded as evidence rather than assumed either way.
+                    if not reader.decrypt(""):
+                        raise ValueError("This PDF needs a password. Philon does not ask for one and did not send the file to a parser.")
+                    encryption = "opened-with-empty-user-password"
                 declared_pages = len(reader.pages)
             finally:
                 logging.disable(previous_logging_threshold)
@@ -203,6 +213,7 @@ def preflight_input(path: Path) -> dict[str, Any]:
             "bytes_sha256": sha256_file(path),
             "signature": "pdf",
             "declared_page_count": declared_pages,
+            "encryption": encryption,
             "limits": {"max_bytes": MAX_INPUT_BYTES, "max_pages": MAX_PDF_PAGES},
         }
     image_signatures = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"II*\x00", b"MM\x00*", b"RIFF")
@@ -278,6 +289,13 @@ def is_numeric_source_marker(value: str) -> bool:
     return bool(re.fullmatch(r"[.·]?\s*\d{1,4}(?:\s+\d{1,4}){0,5}", value.strip()))
 
 
+#: How many pages a running-head variant must appear on before it is counted
+#: as one side of an alternating pair. Two is not enough -- a sentence can open
+#: two pages by chance -- and three is the same floor the whole-document rule
+#: already uses.
+ALTERNATING_MINIMUM_PAGES = 3
+
+
 def repeated_page_artifacts(source_pages: list[dict[str, Any]]) -> set[str]:
     """Find repeated first/last lines only when the evidence is strong.
 
@@ -292,8 +310,18 @@ def repeated_page_artifacts(source_pages: list[dict[str, Any]]) -> set[str]:
         for line in (lines[:2] + lines[-2:]):
             if 3 <= len(line) <= 130 and not line.isdigit():
                 counts[line] = counts.get(line, 0) + 1
+    # A running head is commonly set differently on left- and right-hand pages,
+    # so each variant appears on about half the pages and NEITHER reaches a
+    # 60% threshold. Requiring the strong evidence of a repeat is right; taking
+    # that evidence one variant at a time is what let a recto/verso header
+    # through on every page of a real paper. Variants are counted together and
+    # then each is judged on its own share.
     threshold = max(3, round(len(source_pages) * 0.6))
-    return {line for line, count in counts.items() if count >= threshold}
+    artifacts = {line for line, count in counts.items() if count >= threshold}
+    alternating = sum(count for line, count in counts.items() if count >= ALTERNATING_MINIMUM_PAGES)
+    if alternating >= threshold:
+        artifacts |= {line for line, count in counts.items() if count >= ALTERNATING_MINIMUM_PAGES}
+    return artifacts
 
 
 def is_formula(text: str) -> bool:
@@ -422,15 +450,130 @@ def ocr_parts_with_geometry(page: dict[str, Any], artifacts: set[str]) -> list[d
     return parts or structured_parts_with_spans(page.get("text", ""), artifacts)
 
 
+#: How much narrower than the page's median measured line a bolder line must be
+#: before it is read as standing on its own. Measured rather than chosen: on a
+#: two-column paper the body lines are justified and sit at 1.00x the median,
+#: while "Abstract" and "CCS Concepts" sit at 0.17x and 0.29x.
+SHORT_LINE_FRACTION = 0.5
+
+
+def line_width(line: dict[str, Any]) -> float | None:
+    box = line.get("bbox")
+    if not isinstance(box, dict):
+        return None
+    try:
+        return float(box["x1"]) - float(box["x0"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def closes_a_sentence(text: str) -> bool:
+    stripped = text.strip()
+    return bool(stripped) and stripped[-1] in ".!?\u2026"
+
+
+#: How far past a short bold line to look for the numeric rows that would make
+#: it a table's column headings rather than a heading. Four, because a table
+#: commonly carries a second header row and a units row before its data.
+TABLE_LOOKAHEAD = 4
+NUMERIC_TOKEN = re.compile(r"^[-+(\u2013\u2014]?(?:\d[\d.,:%/x\u00d7-]*|[\u2013\u2014])\)?$")
+
+
+def looks_like_a_numeric_row(text: str) -> bool:
+    """A line that is mostly numbers, as a table's data rows are."""
+    tokens = text.split()
+    if len(tokens) < 2:
+        return False
+    numeric = sum(1 for token in tokens if NUMERIC_TOKEN.match(token))
+    return numeric >= 2 and numeric >= len(tokens) / 2
+
+
+def stands_alone_as_short_bold_line(line: dict[str, Any], previous: dict[str, Any] | None,
+                                    following: list[dict[str, Any]], median_width: float | None,
+                                    body_face: str) -> bool:
+    """A short line in a bolder face, between two closed sentences, is a heading.
+
+    The face rule cannot reach these: a paper sets its figure captions in the
+    same bold as its headings, so "Abstract" is absorbed by the caption above
+    it, and it sets the CCS category list in bold too, so "CCS Concepts" is
+    absorbed by the list below it. Neither is a change of face, and the gaps
+    are smaller than a paragraph break, so nothing separated them.
+
+    Width is what separates them, and it is the reason the rule is safe: a
+    heading occupies a fraction of the measure while body text fills it. The
+    sentence tests are what keep the last line of a bold caption -- also short
+    -- from being read the same way, since that line continues the one above it.
+    """
+    face = line.get("font") or ""
+    if not (is_bold_face(face) or _is_bolder_sibling(face, body_face)):
+        return False
+    width = line_width(line)
+    if width is None or not median_width or width >= SHORT_LINE_FRACTION * median_width:
+        return False
+    if previous is not None and not closes_a_sentence(previous["text"]):
+        return False
+    if following and continues_sentence(line["text"], following[0]["text"]):
+        return False
+    # A table's column headings are short and bold and sit between two closed
+    # sentences exactly as a heading does. What separates them is what comes
+    # after: rows of numbers.
+    if any(looks_like_a_numeric_row(entry["text"]) for entry in following[:TABLE_LOOKAHEAD]):
+        return False
+    return True
+
+
+def stands_alone_as_numbered_heading(text: str) -> bool:
+    """A line that is a section number and a short phrase, and nothing else.
+
+    Deliberately strict. A numbered list item usually runs longer and closes
+    with a full stop, and a heading does neither, so the bound and the absent
+    terminator are what keep list items out.
+    """
+    line = text.strip()
+    if not line or len(line) > NUMBERED_HEADING_CHARS:
+        return False
+    if line[-1] in ".!?,;:":
+        return False
+    # The phrase after the number has to be capitalised and the number has to
+    # look like a section number. Without both, a numbered list item ("2. a
+    # single tile may cover..."), an equation fragment ("1 - a(t)e(x)") and a
+    # bibliography entry opening with a year ("2021. Stochastic Polyak...") all
+    # match, and each of those is common enough to swamp the real headings.
+    return bool(re.match(r"^\d{1,3}(?:\.\d{1,3}){0,3}\.?\s+[A-Z\u0386-\u03ab\u0400-\u042f]", line))
+
+
+def continues_sentence(previous: str, following: str) -> bool:
+    """True when two measured lines are plainly one sentence carried across.
+
+    Deliberately narrow: the first line must not close, and the second must open
+    with a lower-case word. Anything less certain is left to the other rules,
+    because merging two blocks that are genuinely separate is the worse error.
+    """
+    first, second = previous.strip(), following.strip()
+    if not first or not second:
+        return False
+    if first[-1] in ".!?:;\u2026":
+        return False
+    return bool(re.match(r"^[a-z\u00df-\u00ff\u03b1-\u03c9\u0430-\u044f]", second))
+
+
 def geometric_native_parts(page: dict[str, Any], artifacts: set[str]) -> list[dict[str, Any]]:
     """Assemble measured native lines into conservative paragraph candidates."""
     lines = page.get("native_text_lines", [])
     if not lines:
         return structured_parts_with_spans(page["text"], artifacts)
+    widths = [width for width in (line_width(line) for line in lines) if width]
+    median_width = statistics.median(widths) if len(widths) >= 4 else None
+    body_face = str(page.get("body_font") or "")
     parts: list[dict[str, Any]] = []
     current: list[dict[str, Any]] = []
 
+    #: Whether the block being assembled was opened by a numbered heading line.
+    #: A list, so the nested flush() can clear it without a nonlocal binding.
+    numbered = [False]
+
     def flush() -> None:
+        numbered[0] = False
         if not current:
             return
         value = "\n".join(entry["text"] for entry in current).strip()
@@ -438,7 +581,8 @@ def geometric_native_parts(page: dict[str, Any], artifacts: set[str]) -> list[di
             parts.append({"text": value, "start": current[0]["start"], "end": current[-1]["end"]})
         current.clear()
 
-    for line in lines:
+    previous_line: dict[str, Any] | None = None
+    for index, line in enumerate(lines):
         if not line["text"].strip() or normalise_artifact(line["text"]) in artifacts:
             flush()
             continue
@@ -455,7 +599,47 @@ def geometric_native_parts(page: dict[str, Any], artifacts: set[str]) -> list[di
             # A larger-than-leading gap is source evidence of a new paragraph.
             if vertical_gap > max(10.0, 1.15 * max(prior_height, current_height)):
                 flush()
+        # So is a change of face. A heading is set closer to the text it heads
+        # than to the text above it, so the gap rule alone never separates one:
+        # on a two-column paper every inter-line gap is smaller than the 10pt
+        # floor, and the heading is absorbed into the paragraph beneath it and
+        # ceases to exist as structure. The face the page sets a line in is
+        # measured source evidence of the same kind as its position.
+        # A line that is nothing but a section number and a short phrase is a
+        # heading in essentially every technical document, and some papers set
+        # one in the plain body face at the body size -- no measurement of face
+        # or size can separate it, so the number itself has to.
+        if stands_alone_as_numbered_heading(line["text"]):
+            flush()
+            numbered[0] = True
+            current.append(line)
+            continue
+        # ...and it closes at the next line, unless that line plainly finishes
+        # it: a heading long enough to wrap breaks mid-phrase, and orphaning the
+        # remainder makes two wrong blocks out of one right one.
+        if numbered[0] and current and prior:
+            if continues_sentence(prior["text"], line["text"]):
+                current.append(line)
+                previous_line = line
+                continue
+            flush()
+        if stands_alone_as_short_bold_line(line, prior or previous_line,
+                                           lines[index + 1:index + 1 + TABLE_LOOKAHEAD],
+                                           median_width, body_face):
+            flush()
+            parts.append({"text": line["text"].strip(), "start": line["start"], "end": line["end"]})
+            previous_line = line
+            continue
+        if current and line.get("font") and prior and prior.get("font") and line["font"] != prior["font"]:
+            # ...unless the sentence plainly runs on across it. An italic term
+            # opening a definition, or a title inside a bibliography entry,
+            # changes face mid-sentence and is emphasis rather than structure.
+            # Splitting there cuts a paragraph in half and leaves the first half
+            # looking exactly like a heading.
+            if not continues_sentence(prior["text"], line["text"]):
+                flush()
         current.append(line)
+        previous_line = line
     flush()
     return parts or structured_parts_with_spans(page["text"], artifacts)
 
@@ -506,6 +690,17 @@ def native_health(text: str) -> dict[str, Any]:
     replacement = text.count("\ufffd")
     control = sum(1 for char in text if ord(char) < 32 and char not in "\n\t\r")
     invisible = sum(1 for char in text if char in {"\u200b", "\u200c", "\u200d", "\u2060", "\ufeff"})
+    # Counted separately from `invisible`: a noncharacter is a broken font
+    # mapping in the source, not a hidden instruction, and it is resolved in the
+    # reading form rather than being grounds to distrust the whole page.
+    discardable = count_discardable_formatting(text)
+    # A private-use character is a real glyph the PDF's font never mapped to
+    # Unicode -- Adobe writes the registered sign at U+F6D9, and a maths font
+    # commonly puts its own brackets in the E000 block. Philon cannot know what
+    # one means, so it neither deletes it (that would lose text) nor guesses at
+    # it (that would invent text). It is counted, and the record says so.
+    private_use = sum(1 for char in text if 0xE000 <= ord(char) <= 0xF8FF
+                      or 0xF0000 <= ord(char) <= 0xFFFFD or 0x100000 <= ord(char) <= 0x10FFFD)
     alphanumeric = sum(char.isalnum() for char in text)
     punctuation = sum(not char.isalnum() and not char.isspace() for char in text)
     repeated_lines: dict[str, int] = {}
@@ -527,6 +722,8 @@ def native_health(text: str) -> dict[str, Any]:
         confidence = 0.65
     return {
         "native_text_present": bool(visible),
+        "discardable_formatting_characters": discardable,
+        "private_use_characters": private_use,
         "replacement_characters": replacement,
         "control_characters": control,
         "invisible_characters": invisible,
@@ -573,6 +770,79 @@ def source_bbox_for_block(page: dict[str, Any], text: str, start: int | None, en
     return union_bboxes(line_boxes)
 
 
+#: A face whose name carries one of these is set bolder than its family's text
+#: weight. The name is used rather than PDFium's flags because a subset font
+#: often declares no flags at all while still being named for its weight. The
+#: trailing-capital form is how a subset font commonly spells it: a document set
+#: in LinLibertineT titles itself in LinBiolinumTB, a bold face from a different
+#: family, which no comparison against the body face's own name can see.
+BOLD_WORD = re.compile(r"(?:bold|black|heavy|semibold)", re.IGNORECASE)
+BOLD_SUFFIX = re.compile(r"[A-Za-z](?:B|BD)$")
+
+
+def is_bold_face(face: str) -> bool:
+    return bool(face) and bool(BOLD_WORD.search(face) or BOLD_SUFFIX.search(face))
+#: How many characters of a line to sample when naming the face it is set in.
+#: A line is typographically uniform in the ordinary case, and sampling keeps a
+#: dense page from costing one FFI call per character.
+FACE_SAMPLE = 16
+
+
+def line_typeface(textpage: Any, start: int, length: int, text: str) -> tuple[str, float]:
+    """Name the face a measured line is set in, and its type size.
+
+    PDFium already knows both; Philon previously inferred size from glyph
+    bounding boxes, which inverts on a line with no descender -- a heading in
+    larger type can measure *shorter* than the body text around it. The face
+    name is the more portable of the two signals: FPDFText_GetFontSize returns
+    1.0 whenever a PDF scales type through the text matrix instead of the Tf
+    operand, which is the case for many publisher PDFs.
+    """
+    try:
+        import pypdfium2.raw as raw  # type: ignore
+    except ImportError:
+        return "", 0.0
+    indexes = [index for index in range(start, min(start + length, len(text))) if not text[index].isspace()]
+    if not indexes:
+        return "", 0.0
+    step = max(1, len(indexes) // FACE_SAMPLE)
+    sampled = indexes[::step][:FACE_SAMPLE]
+    faces: dict[str, int] = {}
+    sizes: list[float] = []
+    buffer = ctypes.create_string_buffer(160)
+    flags = ctypes.c_int()
+    for index in sampled:
+        try:
+            written = raw.FPDFText_GetFontInfo(textpage, index, buffer, 160, ctypes.byref(flags))
+            name = buffer.raw[:max(0, written - 1)].decode("utf-8", "replace")
+            sizes.append(float(raw.FPDFText_GetFontSize(textpage, index)))
+        except Exception:
+            return "", 0.0
+        faces[name] = faces.get(name, 0) + 1
+    face = max(faces.items(), key=lambda item: item[1])[0] if faces else ""
+    return face, statistics.median(sizes) if sizes else 0.0
+
+
+def document_body_typeface(source_pages: list[dict[str, Any]]) -> tuple[str, float]:
+    """The face and size most of this document's measured text is set in.
+
+    Taken across the whole document rather than per page, because a page can be
+    mostly heading, mostly caption or mostly figure, and a per-page answer would
+    then call the body text unusual.
+    """
+    faces: dict[str, int] = {}
+    sizes: list[float] = []
+    for page in source_pages:
+        for line in page.get("native_text_lines", []):
+            face = line.get("font")
+            if face:
+                faces[face] = faces.get(face, 0) + len(line.get("text", ""))
+            if line.get("size"):
+                sizes.append(float(line["size"]))
+    face = max(faces.items(), key=lambda item: item[1])[0] if faces else ""
+    return face, statistics.median(sizes) if sizes else 0.0
+
+
 def pdfium_extract(path: Path) -> tuple[list[dict[str, Any]], list[WarningRecord]]:
     """Use PDFium first, preserving a pypdf fallback for non-packaged tests."""
     warnings: list[WarningRecord] = []
@@ -602,7 +872,8 @@ def pdfium_extract(path: Path) -> tuple[list[dict[str, Any]], list[WarningRecord
                 if start < 0 or end > len(text):
                     continue
                 bbox = pdfium_span_bbox(textpage, line_start, len(line_text))
-                line_spans.append({"text": line_text, "start": start, "end": end, "bbox": bbox})
+                face, size = line_typeface(textpage, line_start, len(line_text), extracted_text)
+                line_spans.append({"text": line_text, "start": start, "end": end, "bbox": bbox, "font": face, "size": size})
                 spans.append({"start": start, "end": end, "bbox": bbox})
             pages.append({
                 "number": index + 1, "width": width, "height": height, "text": text,
@@ -783,16 +1054,39 @@ def ocr_textless_pdf_pages(path: Path, pages: list[dict[str, Any]], profile: str
 #: rather than chosen: a subheading is commonly 1.15x body text, so the gate
 #: sits above that to keep emphasis from being read as structure.
 HEADING_PROMINENCE = 1.25
+#: A heading set in its own face may wrap, but not far. Beyond this it is a
+#: bold lead-in sentence or an emphasised paragraph, not a section title.
+HEADING_FACE_LINES = 2
+HEADING_FACE_CHARS = 120
+#: A numbered heading is a short phrase; past this it is a numbered sentence.
+NUMBERED_HEADING_CHARS = 80
 
 
-def classify_block(text: str, prominence: float | None = None) -> tuple[str, int | None]:
-    """Name a block from its text, and from how large that text is set.
+def is_numbered_heading(first_line: str) -> bool:
+    """A leading section number is structure the source states outright."""
+    return bool(re.match(r"^\d+(?:\.\d+)*\.?\s+\S", first_line))
+
+
+def heading_depth(first_line: str) -> int:
+    """Read a heading's level from its own section number, else default to 2."""
+    number = re.match(r"^(\d+(?:\.\d+)*)", first_line)
+    return min(6, number.group(1).count(".") + 1) if number else 2
+
+
+def classify_block(text: str, prominence: float | None = None, typeface: dict[str, Any] | None = None) -> tuple[str, int | None]:
+    """Name a block from its text, and from how the page sets that text.
 
     `prominence` is the block's line height against the page's median line
     height, where the page measured it. A heading is a line of its own, because
     the first line of ordinary prose looks exactly like one; a title that wraps
     is only readable as a heading when the page shows it set larger than the
     body text around it.
+
+    `typeface` is what PDFium says the block is actually set in: whether its
+    face differs from the document's body face, and whether that face is a bold
+    one. This is what lets a heading be recognised in a script the text rules
+    cannot read, and it is measured rather than inferred -- unlike line height,
+    which a heading without descenders makes *smaller* than the body text.
     """
     first_line = text.splitlines()[0] if text else ""
     line_count = len([line for line in text.splitlines() if line.strip()])
@@ -809,9 +1103,40 @@ def classify_block(text: str, prominence: float | None = None) -> tuple[str, int
     # wrapped paragraphs into headings, because that line starts with a capital
     # and ends mid-clause rather than with a full stop.
     prominent = prominence is not None and prominence >= HEADING_PROMINENCE and line_count <= 3
-    if (line_count == 1 or prominent) and re.match(r"^(?:\d+(?:\.\d+)*\s+)?[A-Z][A-Za-z0-9 ,:;()/-]{3,}$", first_line) and len(first_line) < 100:
-        depth = min(6, first_line.count(".") + 1) if re.match(r"^\d+", first_line) else 2
-        return "heading", depth
+    # The page's own measurement is allowed to say no, not only yes. A short
+    # line that starts with a capital and ends mid-clause reads exactly like a
+    # heading -- an author line, an affiliation, a keyword list -- and the text
+    # rule alone promoted all three. Where the page sets the line in the plain
+    # body face at the body size, it has already answered the question, and a
+    # guess from the characters must not overrule a measurement of the type.
+    # The page sets a heading apart by weight. A face that merely *differs* from
+    # the body face is as likely to be italic -- emphasis, a defined term, a
+    # cited title -- and the text rule promoted those too. So the measurement
+    # grants a heading only where the face is bolder, and refuses everywhere
+    # else it was actually taken.
+    # ...and a block the page shows to sit above rows of numbers is a table's
+    # column headings, which are short, capitalised and bold exactly as a
+    # heading is. The characters cannot tell the two apart; what follows can.
+    set_apart = bool(typeface) and bool(typeface.get("bold")) and not typeface.get("precedes_numeric_rows")
+    measured_as_prose = bool(typeface) and not set_apart and not is_numbered_heading(first_line)
+    if (line_count == 1 or prominent) and not measured_as_prose and re.match(r"^(?:\d+(?:\.\d+)*\s+)?[A-Z][A-Za-z0-9 ,:;()/-]{3,}$", first_line) and len(first_line) < 100:
+        return "heading", heading_depth(first_line)
+    # A run the page sets in a different, bolder face than the body text is a
+    # heading whatever alphabet it is written in. The text rules above are
+    # ASCII-Latin only, so without this a Greek, Cyrillic or accented heading
+    # could never be one; and they demand no terminal punctuation, so a heading
+    # ending in '?', '&' or a full stop could not be one either.
+    # A numbered heading may be set in the plain body face and may wrap. The
+    # segmenter isolates it on the strength of its number, so the classifier
+    # honours the same evidence rather than losing it to the single-line rule.
+    if stands_alone_as_numbered_heading(first_line) and line_count <= HEADING_FACE_LINES \
+            and len(text.strip()) <= HEADING_FACE_CHARS:
+        return "heading", heading_depth(first_line)
+    if typeface and typeface.get("differs_from_body") and typeface.get("bold") \
+            and not typeface.get("precedes_numeric_rows") and line_count <= HEADING_FACE_LINES:
+        stripped = text.strip()
+        if 0 < len(stripped) <= HEADING_FACE_CHARS and not stripped.endswith((".", ";")):
+            return "heading", heading_depth(first_line)
     return "paragraph", None
 
 
@@ -881,8 +1206,54 @@ def block_prominence(page: dict[str, Any], start: int | None, end: int | None) -
     return statistics.median(block_heights) / page_median if page_median > 0 else None
 
 
+def block_typeface(page: dict[str, Any], start: int | None, end: int | None) -> dict[str, Any] | None:
+    """What face this block is set in, against the document's body face.
+
+    Returns None where the face was never measured -- an OCR page, the pypdf
+    fallback, or a build of PDFium without the font call -- so a caller keeps
+    exactly the behaviour it had before the face was available.
+    """
+    if start is None or end is None:
+        return None
+    body_face = page.get("body_font")
+    if not body_face:
+        return None
+    faces: dict[str, int] = {}
+    for line in page.get("native_text_lines", []):
+        face = line.get("font")
+        if face and line.get("start", -1) < end and line.get("end", -1) > start:
+            faces[face] = faces.get(face, 0) + len(str(line.get("text", "")))
+    if not faces:
+        return None
+    face = max(faces.items(), key=lambda item: item[1])[0]
+    # A table's column headings are short and set in the same bold as a
+    # heading, and a change of face isolates them exactly as it isolates one.
+    # What follows is the only thing that separates the two, so the block
+    # carries that with it rather than being judged on its own appearance.
+    after = sorted((line for line in page.get("native_text_lines", []) if line.get("start", -1) >= end),
+                   key=lambda line: line.get("start", 0))[:TABLE_LOOKAHEAD]
+    return {
+        "face": face,
+        "differs_from_body": face != body_face,
+        "bold": is_bold_face(face) or _is_bolder_sibling(face, body_face),
+        "precedes_numeric_rows": any(looks_like_a_numeric_row(str(line.get("text", ""))) for line in after),
+    }
+
+
+def _is_bolder_sibling(face: str, body_face: str) -> bool:
+    """True for a face that is the body face plus a weight suffix.
+
+    Subset fonts are often named by suffix rather than by word: a document set
+    in `LinLibertineT` sets its headings in `LinLibertineTB`. The word-based
+    test cannot see that, and a bare "is it different" test would call every
+    italic and every small-caps face a heading.
+    """
+    return bool(body_face) and face != body_face and face.startswith(body_face) and face[len(body_face):].upper() in {"B", "BD", "-B", "-BD"}
+
+
 def make_block(page: dict[str, Any], ordinal: int, text: str, start: int | None = None, end: int | None = None, ocr_line_indexes: list[int] | None = None) -> dict[str, Any]:
-    kind, level = classify_block(text, prominence=block_prominence(page, start, end))
+    typeface = block_typeface(page, start, end)
+    kind, level = classify_block(text, prominence=block_prominence(page, start, end), typeface=typeface)
     health = native_health(text)
     page_id = f"page-{page['number']}"
     block_id = f"{page_id}-block-{ordinal}"
@@ -1029,6 +1400,8 @@ def verified_checks(pages: list[dict[str, Any]], blocks: list[dict[str, Any]]) -
         health = page.get("route", {}).get("native_text_health", {})
         if health.get("invisible_characters", 0):
             findings.append(WarningRecord("INVISIBLE_TEXT_SUSPECTED", "Verified found zero-width characters in native text. The source text is retained unchanged; inspect this page before reuse.", page=page["number"]))
+        if health.get("private_use_characters", 0):
+            findings.append(WarningRecord("PRIVATE_USE_CHARACTERS", f"Verified found {health['private_use_characters']} character(s) this PDF's fonts never mapped to Unicode. They are retained exactly as extracted; Philon did not guess what they represent, so this page needs review before machine reuse.", page=page["number"]))
         if health.get("duplicate_source_line_count", 0) >= 3:
             findings.append(WarningRecord("DUPLICATE_SOURCE_LINES", "Verified found repeated native lines on this page. They may be intentional source content or overlapping/invisible PDF text; Philon retained them for review.", page=page["number"]))
         if page["method"] in {"pdfium-native", "apple-vision-ocr"}:
@@ -1063,6 +1436,9 @@ def make_ir(path: Path, profile: str) -> tuple[dict[str, Any], list[WarningRecor
     else:
         source_pages, warnings = image_extract(path, profile)
 
+    body_face, body_size = document_body_typeface(source_pages)
+    for source_page in source_pages:
+        source_page["body_font"], source_page["body_size"] = body_face, body_size
     artifacts = repeated_page_artifacts(source_pages)
     pages: list[dict[str, Any]] = []
     blocks: list[dict[str, Any]] = []
@@ -1121,17 +1497,61 @@ def make_ir(path: Path, profile: str) -> tuple[dict[str, Any], list[WarningRecor
     return ir, warnings, [Timing("native-extraction", round((time.perf_counter() - started) * 1000))]
 
 
+def is_discardable_formatting(character: str) -> bool:
+    """True for a character that carries layout, never a word.
+
+    Two families. The zero-width joiners and the soft hyphen are legitimate
+    formatting a reader is not meant to see. The Unicode *noncharacters* --
+    U+FDD0..U+FDEF and U+nFFFE/U+nFFFF in every plane -- are permanently
+    reserved and are never valid in interchange; PDFium hands them over where a
+    PDF's font maps a hyphenation point to an unassigned slot. Either way the
+    character belongs to the layout, so it is dropped from the reading form and
+    retained verbatim in `text`.
+    """
+    code = ord(character)
+    if character in {"\u00ad", "\u200b", "\u200c", "\u200d", "\u2060", "\ufeff"}:
+        return True
+    if 0xFDD0 <= code <= 0xFDEF:
+        return True
+    return code & 0xFFFE == 0xFFFE
+
+
+def count_discardable_formatting(text: str) -> int:
+    return sum(1 for character in text if is_discardable_formatting(character))
+
+
 def clean_reading_text(text: str) -> str:
-    """Reflow measured source lines without changing their words or meaning."""
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if not lines:
+    """Reflow measured source lines without changing their words or meaning.
+
+    Whitespace, safe line-end hyphenation, and characters that carry layout
+    rather than meaning. A noncharacter left in place corrupts the word it sits
+    inside -- `de<U+FFFE>picted` -- and makes the output invalid UTF-8 for a
+    strict consumer, so it is resolved here and never in `text`.
+    """
+    measured: list[tuple[str, bool]] = []
+    for raw_line in text.splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+        # A discardable character at the end of a line is a hyphenation point,
+        # exactly as a trailing "-" is; anywhere else it simply vanishes.
+        hyphenates = is_discardable_formatting(stripped[-1])
+        body = "".join(character for character in stripped if not is_discardable_formatting(character))
+        if body:
+            measured.append((body, hyphenates))
+    if not measured:
         return ""
-    joined: list[str] = []
-    for line in lines:
-        if joined and re.search(r"[A-Za-z]{2,}-$", joined[-1]) and re.match(r"^[a-z][A-Za-z'-]*\b", line):
-            joined[-1] = joined[-1][:-1] + line
+    joined: list[str] = [measured[0][0]]
+    pending_hyphen = measured[0][1]
+    for body, hyphenates in measured[1:]:
+        continues = bool(re.match(r"^[a-z][A-Za-z'-]*\b", body))
+        if continues and pending_hyphen:
+            joined[-1] = joined[-1] + body
+        elif continues and re.search(r"[A-Za-z]{2,}-$", joined[-1]):
+            joined[-1] = joined[-1][:-1] + body
         else:
-            joined.append(line)
+            joined.append(body)
+        pending_hyphen = hyphenates
     return re.sub(r"\s+", " ", " ".join(joined)).strip()
 
 
@@ -1140,19 +1560,62 @@ def source_page_number(ir: dict[str, Any], page_id: str) -> int | None:
     return int(page["number"]) if isinstance(page, dict) and isinstance(page.get("number"), int) else None
 
 
-def render_markdown(ir: dict[str, Any]) -> str:
-    """Render clean, portable Markdown for reading and ordinary text apps.
+def native_images_by_page(ir: dict[str, Any]) -> dict[int, list[dict[str, Any]]]:
+    """Group the extracted source images by the page each was drawn on."""
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for image in ir.get("document_artifacts", {}).get("native_images", []):
+        for page_number in image.get("source_pages", []) or []:
+            if isinstance(page_number, int):
+                grouped.setdefault(page_number, []).append(image)
+    return grouped
 
-    The canonical machine package retains line-level provenance.  This layer is
-    intentionally simple: source-page markers remain available as comments,
-    while visual assets are not appended as a distracting gallery.
+
+def markdown_page_images(grouped: dict[int, list[dict[str, Any]]], page_number: int | None) -> list[str]:
+    """Reference one page's source images, naming them rather than describing them.
+
+    The alt text identifies the asset and says a description is owed. Philon
+    does not look at the image, so it must not write what is in it.
+    """
+    images = grouped.get(page_number or -1) or []
+    if not images:
+        return []
+    lines: list[str] = []
+    for image in images:
+        asset_id = str(image.get("id", "source-image"))
+        relative_path = str(image.get("relative_path", ""))
+        if not relative_path:
+            continue
+        width, height = image.get("pixel_width"), image.get("pixel_height")
+        dimensions = f" · {width} × {height}px" if width and height else ""
+        lines.extend([
+            f"![Extracted source image {asset_id}; source page {page_number}; visual description requires review.]({relative_path})",
+            f"_Evidence: native PDF image {asset_id} · source page {page_number}{dimensions} · extraction native-pdf-image-stream._",
+            "",
+        ])
+    return lines
+
+
+def render_markdown(ir: dict[str, Any]) -> str:
+    """Render clean, portable Markdown for reading and for machine ingestion.
+
+    The canonical machine package retains line-level provenance. This layer is
+    intentionally simple: source-page markers remain available as comments, and
+    each page's extracted source images are referenced where that page ends.
+
+    They are grouped by page rather than composed into figures, because Philon
+    extracts embedded image streams and does not infer which of them make up one
+    figure. A photomosaic paper embeds dozens of images inside a single printed
+    figure; claiming a figure grouping would be inventing structure. The page is
+    what the source proves, so the page is what is stated.
     """
     lines: list[str] = []
     document_name = str(ir.get("document", {}).get("source", {}).get("filename", "Philon document"))
     lines.extend(["---", f"title: {document_name}", "generated_by: Philon 0.2", "---", ""])
+    images_by_page = native_images_by_page(ir)
     current_page: str | None = None
     for block in ir["blocks"]:
         if block.get("page") != current_page:
+            lines.extend(markdown_page_images(images_by_page, source_page_number(ir, current_page) if current_page else None))
             current_page = str(block.get("page"))
             page_number = source_page_number(ir, current_page)
             if page_number is not None:
@@ -1174,6 +1637,7 @@ def render_markdown(ir: dict[str, Any]) -> str:
             lines.extend([f"> {text}", ""])
         else:
             lines.extend([text, ""])
+    lines.extend(markdown_page_images(images_by_page, source_page_number(ir, current_page) if current_page else None))
     return "\n".join(lines).strip() + "\n"
 
 
@@ -1271,7 +1735,7 @@ def write_machine_package(ir: dict[str, Any], output_dir: Path) -> Path:
     package = {
         "schema_version": "philon-machine-package/1.0", "document": ir.get("document", {}),
         "files": {"blocks": "blocks.ndjson", "reading_order": "reading-order.json", "pages": "pages/", "assets": "assets.json", "evidence": "../" + safe_slug(Path(str(ir.get("document", {}).get("source", {}).get("filename", "document"))).stem) + ".evidence.json"},
-        "guarantees": ["source text is retained in blocks.ndjson", "reading_text changes whitespace and safe line-end hyphenation only", "geometry and uncertainty remain explicit", "visual descriptions are never inferred"],
+        "guarantees": ["source text is retained in blocks.ndjson", "reading_text changes whitespace, safe line-end hyphenation and characters that carry layout rather than meaning", "geometry and uncertainty remain explicit", "visual descriptions are never inferred"],
     }
     atomic_write_text(root / "package.json", json.dumps(package, indent=2, ensure_ascii=False))
     atomic_write_text(root / "reading-order.json", json.dumps({"schema_version": "1.0", "items": reading_order}, indent=2, ensure_ascii=False))

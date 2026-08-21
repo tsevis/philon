@@ -56,8 +56,11 @@ review rather than guessing.
   input. `Verified` adds deterministic source-geometry, duplicate-content, and
   reading-order ambiguity checks; it reports uncertainty for review rather than
   changing source order.
-- **Intake preflight.** Invalid signatures, empty files, encrypted PDFs, and
-  documents beyond the V1 size and page limits are refused before extraction.
+- **Intake preflight.** Invalid signatures, empty files, password-protected
+  PDFs, and documents beyond the V1 size and page limits are refused before
+  extraction. A PDF that is encrypted with an *empty* user password is opened,
+  because it opens for everyone else too, and the record says that is what
+  happened.
   Images are checked for container integrity, single-frame status, and a
   100-megapixel ceiling before anything reaches OCR.
 - **Local review as provenance.** Accepting, editing, or restoring a candidate
@@ -248,6 +251,84 @@ Use the private-corpus harness in [`bench/README.md`](bench/README.md) to record
 A version number here describes the application. The engine contract and the IR
 version are deliberately separate and both remain at 0.2.0, so a document
 converted by any 0.2.x build carries the same evidence shape.
+
+**Unreleased** — Structure from the face the page sets it in. Measuring a
+heading by the height of its glyph boxes inverts on a line with no descender: on
+a real two-column paper `2 Related Work` measured 7.73pt against a body median
+of 8.39pt, so the signal said the heading was *smaller* than the text around it.
+PDFium already reports the true font name and size, and the name is the portable
+half — `FPDFText_GetFontSize` returns 1.0 whenever a PDF scales type through the
+text matrix, which two of the three papers measured here do. Every measured line
+now records the face it is set in; a change of face starts a new block, and a
+short run in a bolder face is a heading whatever alphabet it is written in.
+
+That second half matters more than it looks. The text rules are ASCII-Latin, so
+a Greek, Cyrillic or accented heading could never be a heading in any profile,
+and neither could an English one ending in `?` or containing `&`.
+
+Measured against Marker on three papers: **100% recall at 100% precision**,
+**100% at 100%** (its one disagreement is a heading Marker itself missed and
+Philon found — same bold face as the section Marker did mark), and **96% at
+100%**. No false positives remain on any of the three. The single heading still
+missed is an algorithm listing's caption.
+
+The measurement now also says *no*, which it never did before. A short line
+starting with a capital and ending mid-clause reads exactly like a heading — an
+author line, an affiliation, a keyword list — and the text rule promoted all
+three. Where the page sets such a line in the plain body face, it has already
+answered the question, and a guess from the characters no longer overrules a
+measurement of the type. A leading section number still wins, because that is
+structure the source states outright — and only a *bolder* face grants one,
+since a face that merely differs from the body face is as likely to be italic,
+which is emphasis. A defined term opening a definition and a cited title inside
+a bibliography entry are both italic and both used to be promoted.
+
+Two rules carry the cases no face can reach. A face change that plainly falls
+mid-sentence no longer splits the paragraph, because an italic term opening a
+definition changes face mid-clause and cutting there left the first half looking
+exactly like a heading. And a line that is a section number followed by a short
+capitalised phrase stands alone as its own block, because some papers set a
+subsection in the plain body face at the body size where no measurement can
+separate it; it may wrap onto a second line rather than orphan it. That rule is
+kept strict — a numbered list item, an equation fragment and a bibliography entry
+opening with a year all match a looser one, and each is common enough to swamp
+the real headings.
+
+Two more rules come from a paper that sets its figure captions in the same bold
+as its headings, so no change of face separates `Abstract` from the caption above
+it or `CCS Concepts` from the bold category list below it. **Width** separates
+them: body lines are justified at 1.00x the page's median measured line while
+those two sit at 0.17x and 0.29x, so a short line in a bolder face stands on its
+own — provided the line above it closes its sentence, which is what keeps the
+short final line of a bold caption from being read the same way. And because a
+table's column headings are short, capitalised and bold in exactly the same way,
+a block the page shows sitting above **rows of numbers** is not a heading. That
+guard covers both routes into a heading, since the characters alone cannot tell
+`CLIP Score Pick Score MSE` from a section title.
+
+The segmenter was the larger fault. It split only on a vertical gap wider than
+`max(10.0, 1.15 x line height)`, and a heading is set closer to the text it
+heads than to the text above it — so on a two-column paper *every* inter-line
+gap fell under the 10pt floor and every heading was absorbed into the paragraph
+beneath it. Measured against Marker on three papers, heading recall went from
+39%, 9% and 0% to 94%, 91% and 57%; precision falls from an empty 100% to
+81%, 77% and 57%, which is the trade.
+
+Three smaller repairs travel with it. Unicode *noncharacters* (U+FFFE and its
+kin) arrive from PDFium where a font maps a hyphenation point to an unassigned
+slot; one paper carried 87 of them, each corrupting the word it sat inside,
+while the page reported 0.98 confidence and no warning. They carry layout, not
+meaning, so they are resolved in `reading_text` and retained verbatim in `text`.
+A *private-use* character is the opposite case — a real glyph the font never
+mapped, such as Adobe's registered sign at U+F6D9 — so it is counted, kept, and
+reported as `PRIVATE_USE_CHARACTERS` rather than deleted or guessed at. And a
+running head set differently on facing pages had each variant land on about half
+the pages, so neither reached the 60% threshold and both were emitted as body
+text on every page; variants are now counted together and judged individually.
+
+Extracted source images are referenced in Markdown at the page they came from,
+grouped by page rather than composed into figures: Philon extracts embedded
+image streams and does not infer which of them make up one printed figure.
 
 **0.2.4** — A title that wraps is a heading again. 0.2.3 required a heading to
 be a single line, which kept prose out of the heading set but lost the titles
