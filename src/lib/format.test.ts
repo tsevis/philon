@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { basename, bytesLabel, confidenceLabel } from "./format";
+import { basename, bytesLabel, confidenceLabel, timestampLabel } from "./format";
 
 describe("basename", () => {
   it("names the document rather than its containing path", () => {
@@ -51,5 +51,29 @@ describe("confidenceLabel", () => {
 
   it("treats an unmeasured block as needing review", () => {
     expect(confidenceLabel(0)).toBe("Needs review");
+  });
+});
+
+describe("timestampLabel", () => {
+  it("reads the RFC 3339 time the local database records", () => {
+    // Formatted for whichever locale the Mac is set to, so this asserts that
+    // the moment survived rather than how it happened to be spelled.
+    expect(timestampLabel("2026-01-01T00:00:00Z")).toBe(new Date("2026-01-01T00:00:00Z").toLocaleString());
+  });
+
+  it("never shows the reader the string \"Invalid Date\"", () => {
+    for (const unparseable of ["", "not-a-date", "0000-00-00", undefined, null]) {
+      expect(timestampLabel(unparseable)).not.toBe("Invalid Date");
+    }
+  });
+
+  it("shows an unparseable timestamp as it was actually stored", () => {
+    expect(timestampLabel("not-a-date")).toBe("not-a-date");
+  });
+
+  it("names an absent timestamp as absent", () => {
+    expect(timestampLabel(undefined)).toBe("Date not recorded");
+    expect(timestampLabel(null)).toBe("Date not recorded");
+    expect(timestampLabel("")).toBe("Date not recorded");
   });
 });
