@@ -252,7 +252,27 @@ A version number here describes the application. The engine contract and the IR
 version are deliberately separate and both remain at 0.2.0, so a document
 converted by any 0.2.x build carries the same evidence shape.
 
-**Unreleased** — A warm conversion is now warm. The cache covered `make_ir`
+**0.2.5** — The Batch tab kept its documents. Adding a document emptied the
+window: the queue reads each row from the record `list_batch_items` returns,
+and the record arrived with every multi-word field renamed — `sourcePath`
+where the workspace reads `source_path` — so the queue asked an absent path
+for its file name and the render threw. Nothing typed that boundary: the
+record is described in TypeScript one way and serialised the other, and the
+two never meet at compile time. It is now tested on the serialised record
+rather than the struct, which is the half the workspace sees.
+
+A render failure no longer costs the whole application. There was nothing to
+catch one, so a single malformed record left an empty window with no message
+and no way back short of quitting. The failure is now held, reported, and
+recoverable.
+
+The Library dates its jobs again, for the same reason and with the same fix.
+`new Date(…).toLocaleString()` answers the string "Invalid Date" for anything
+it cannot parse — it renders, it sits where a date belongs, and it says
+nothing about what Philon holds. A timestamp that will not parse is now shown
+as it was stored, and an absent one is named as absent.
+
+A warm conversion is now warm. The cache covered `make_ir`
 alone, which is 17.7% of the work on a text-heavy paper and **1.1%** on an
 image-heavy one, so a genuine cache hit saved 0.7% on exactly the document that
 cost the most: page rasterisation and asset extraction reran every time, and
