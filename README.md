@@ -336,12 +336,19 @@ mapped to Unicode — so it is counted, kept, and reported as
 One part of that range is different, and is resolved. Adobe's **Corporate Use
 Subarea** (U+F600–U+F8FF) is a *published* assignment: it names typographic
 variants of characters that already have a Unicode value — a serif copyright
-sign, an old-style figure, a small capital, a superior letter. Resolving one
-transcribes what Adobe already states and loses only the variant form; it never
-substitutes a different character. 103 such glyphs are resolved in the reading
-form, derived from the Adobe Glyph List by
+sign, an old-style figure. Resolving one transcribes what Adobe already states
+and loses only the shape; it never substitutes a different character. 16 such
+glyphs are resolved in the reading form, derived from the Adobe Glyph List by
 `tools/generate_adobe_glyph_variants.py`. U+F6D9 is `copyrightserif`, which is
 how `Adobe Photoshop ©` reaches the text of one of the reference papers.
+
+Only the families where the base character is not in doubt. Small capitals and
+superior/inferior letters are deliberately **not** resolved: `Asmall` could
+reasonably be `A` or `a` — the glyph name settles the shape, not the case — and
+a superior letter carries its position as part of its meaning, so flattening it
+to the base letter silently drops a footnote marker or an ordinal. Both stay in
+the private-use area and are reported as unreadable, which is the honest answer
+rather than the fuller-looking one.
 
 Everywhere else in the private-use area the character is left exactly as
 extracted, and the distinction is not a judgement call. One reference paper
