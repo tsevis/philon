@@ -252,6 +252,32 @@ A version number here describes the application. The engine contract and the IR
 version are deliberately separate and both remain at 0.2.0, so a document
 converted by any 0.2.x build carries the same evidence shape.
 
+**Unreleased** — A warm conversion is now warm. The cache covered `make_ir`
+alone, which is 17.7% of the work on a text-heavy paper and **1.1%** on an
+image-heavy one, so a genuine cache hit saved 0.7% on exactly the document that
+cost the most: page rasterisation and asset extraction reran every time, and
+extracting 107 embedded images from a 58 MB paper takes 20.6 seconds. Both
+phases now reuse their own output, which was already sitting in a
+content-addressed destination beside them. Reconversion of that paper goes from
+19.1 s to 0.3 s, a 63x saving; the added cold cost is 266 ms of hashing, about
+1%.
+
+Reuse is equivalent to recomputation rather than merely close to it. Each phase
+writes a manifest atomically **after** it succeeds, recording the source path
+and the sha256 of every file it produced, and reuse happens only when that
+manifest reads back and every file still hashes to what it claims — so an
+interrupted run leaves no manifest and cannot be mistaken for a finished one, a
+tampered or missing file is refused, and another document's manifest is refused
+even where the bytes would match. `bypass` and `refresh` still recompute
+everything. A truncated asset extraction replays its `ASSET_EXTRACTION_LIMIT`
+warning, because reusing the files without it would quietly turn a bounded
+export into a complete-looking one.
+
+Proving that equivalence surfaced a separate defect, which is recorded and not
+fixed: one CCITT fax image in a reference paper fails to decode and produces
+**different bytes on every extraction**, so its `bytes_sha256` — its provenance
+— changes run to run. See `documents/CACHE_BOUNDARY_AND_ASSET_COST.md`.
+
 **Unreleased** — Structure from the face the page sets it in. Measuring a
 heading by the height of its glyph boxes inverts on a line with no descender: on
 a real two-column paper `2 Related Work` measured 7.73pt against a body median
