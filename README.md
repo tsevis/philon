@@ -268,10 +268,9 @@ and neither could an English one ending in `?` or containing `&`.
 
 Measured against Marker on three papers: **100% recall at 100% precision**,
 **100% at 100%** (its one disagreement is a heading Marker itself missed and
-Philon found — same bold face as the section Marker did mark), and **87% at
-95%**. The three headings still missed on the third paper are set on the same
-line as the text they head (`CCS Concepts • Computing methodologies…`), which
-line-level segmentation cannot separate.
+Philon found — same bold face as the section Marker did mark), and **96% at
+100%**. No false positives remain on any of the three. The single heading still
+missed is an algorithm listing's caption.
 
 The measurement now also says *no*, which it never did before. A short line
 starting with a capital and ending mid-clause reads exactly like a heading — an
@@ -294,6 +293,18 @@ separate it; it may wrap onto a second line rather than orphan it. That rule is
 kept strict — a numbered list item, an equation fragment and a bibliography entry
 opening with a year all match a looser one, and each is common enough to swamp
 the real headings.
+
+Two more rules come from a paper that sets its figure captions in the same bold
+as its headings, so no change of face separates `Abstract` from the caption above
+it or `CCS Concepts` from the bold category list below it. **Width** separates
+them: body lines are justified at 1.00x the page's median measured line while
+those two sit at 0.17x and 0.29x, so a short line in a bolder face stands on its
+own — provided the line above it closes its sentence, which is what keeps the
+short final line of a bold caption from being read the same way. And because a
+table's column headings are short, capitalised and bold in exactly the same way,
+a block the page shows sitting above **rows of numbers** is not a heading. That
+guard covers both routes into a heading, since the characters alone cannot tell
+`CLIP Score Pick Score MSE` from a section title.
 
 The segmenter was the larger fault. It split only on a vertical gap wider than
 `max(10.0, 1.15 x line height)`, and a heading is set closer to the text it
