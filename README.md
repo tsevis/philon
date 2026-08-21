@@ -330,8 +330,25 @@ slot; one paper carried 87 of them, each corrupting the word it sat inside,
 while the page reported 0.98 confidence and no warning. They carry layout, not
 meaning, so they are resolved in `reading_text` and retained verbatim in `text`.
 A *private-use* character is the opposite case — a real glyph the font never
-mapped, such as Adobe's registered sign at U+F6D9 — so it is counted, kept, and
-reported as `PRIVATE_USE_CHARACTERS` rather than deleted or guessed at. And a
+mapped to Unicode — so it is counted, kept, and reported as
+`PRIVATE_USE_CHARACTERS` rather than deleted or guessed at.
+
+One part of that range is different, and is resolved. Adobe's **Corporate Use
+Subarea** (U+F600–U+F8FF) is a *published* assignment: it names typographic
+variants of characters that already have a Unicode value — a serif copyright
+sign, an old-style figure, a small capital, a superior letter. Resolving one
+transcribes what Adobe already states and loses only the variant form; it never
+substitutes a different character. 103 such glyphs are resolved in the reading
+form, derived from the Adobe Glyph List by
+`tools/generate_adobe_glyph_variants.py`. U+F6D9 is `copyrightserif`, which is
+how `Adobe Photoshop ©` reaches the text of one of the reference papers.
+
+Everywhere else in the private-use area the character is left exactly as
+extracted, and the distinction is not a judgement call. One reference paper
+settles it: its maths font ships a `/ToUnicode` CMap that maps some of its codes
+to real characters (`=`, `−`, `∣`) and deliberately leaves the rest in the
+private-use area. That is the producer stating its own limit, not an omission to
+repair, and resolving those would be inventing text. And a
 running head set differently on facing pages had each variant land on about half
 the pages, so neither reached the 60% threshold and both were emitted as body
 text on every page; variants are now counted together and judged individually.
