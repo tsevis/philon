@@ -269,8 +269,18 @@ and neither could an English one ending in `?` or containing `&`.
 Measured against Marker on three papers: **100% recall at 100% precision**,
 **100% at 100%** (its one disagreement is a heading Marker itself missed and
 Philon found — same bold face as the section Marker did mark), and **96% at
-100%**. No false positives remain on any of the three. The single heading still
-missed is an algorithm listing's caption.
+100%**. No false positives remain on any of the three.
+
+The one remaining difference is deliberate. Marker renders `Algorithm 1 Compute
+loss` as a heading; Philon calls it a **caption**, because a figure, a table and
+an algorithm listing are the same kind of thing — a titled float, not a section
+of the document. Promoting it puts two chunks under the heading path
+`['4 Method', 'Algorithm 1 Compute loss']`, which tells anything reading the
+chunks that they are sections of the algorithm. A float's title also starts its
+own block now: its caption interrupts the column flow, so the line above it can
+end mid-word and no sentence or whitespace rule can fire — on one paper that
+left the caption and its entire listing inside a 29-line paragraph opening with
+unrelated prose.
 
 The measurement now also says *no*, which it never did before. A short line
 starting with a capital and ending mid-clause reads exactly like a heading — an
