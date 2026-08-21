@@ -239,6 +239,14 @@ A version number here describes the application. The engine contract and the IR
 version are deliberately separate and both remain at 0.2.0, so a document
 converted by any 0.2.x build carries the same evidence shape.
 
+**0.2.3** — A heading has to be a line of its own. `classify_block` judged a
+block by its first line — capitalised, under a hundred characters, no full stop
+— and the first line of ordinary prose is all three, because it ends mid-clause.
+A wrapped paragraph of up to three lines therefore became a heading: converting
+a page of plain prose emitted two of its three paragraphs as H2s. The cost of
+the narrower rule is a heading that wraps onto a second line, which is rarer
+than a paragraph that does.
+
 **0.2.2** — Philon stops its engine when it quits. The engine was spawned and
 never reaped: a `Child` does not kill on drop, and the application was run
 without an exit handler, so an engine could outlive the window that started it
