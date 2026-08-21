@@ -56,8 +56,11 @@ review rather than guessing.
   input. `Verified` adds deterministic source-geometry, duplicate-content, and
   reading-order ambiguity checks; it reports uncertainty for review rather than
   changing source order.
-- **Intake preflight.** Invalid signatures, empty files, encrypted PDFs, and
-  documents beyond the V1 size and page limits are refused before extraction.
+- **Intake preflight.** Invalid signatures, empty files, password-protected
+  PDFs, and documents beyond the V1 size and page limits are refused before
+  extraction. A PDF that is encrypted with an *empty* user password is opened,
+  because it opens for everyone else too, and the record says that is what
+  happened.
   Images are checked for container integrity, single-frame status, and a
   100-megapixel ceiling before anything reaches OCR.
 - **Local review as provenance.** Accepting, editing, or restoring a candidate
@@ -248,6 +251,44 @@ Use the private-corpus harness in [`bench/README.md`](bench/README.md) to record
 A version number here describes the application. The engine contract and the IR
 version are deliberately separate and both remain at 0.2.0, so a document
 converted by any 0.2.x build carries the same evidence shape.
+
+**Unreleased** — Structure from the face the page sets it in. Measuring a
+heading by the height of its glyph boxes inverts on a line with no descender: on
+a real two-column paper `2 Related Work` measured 7.73pt against a body median
+of 8.39pt, so the signal said the heading was *smaller* than the text around it.
+PDFium already reports the true font name and size, and the name is the portable
+half — `FPDFText_GetFontSize` returns 1.0 whenever a PDF scales type through the
+text matrix, which two of the three papers measured here do. Every measured line
+now records the face it is set in; a change of face starts a new block, and a
+short run in a bolder face is a heading whatever alphabet it is written in.
+
+That second half matters more than it looks. The text rules are ASCII-Latin, so
+a Greek, Cyrillic or accented heading could never be a heading in any profile,
+and neither could an English one ending in `?` or containing `&`.
+
+The segmenter was the larger fault. It split only on a vertical gap wider than
+`max(10.0, 1.15 x line height)`, and a heading is set closer to the text it
+heads than to the text above it — so on a two-column paper *every* inter-line
+gap fell under the 10pt floor and every heading was absorbed into the paragraph
+beneath it. Measured against Marker on three papers, heading recall went from
+39%, 9% and 0% to 94%, 91% and 57%; precision falls from an empty 100% to
+81%, 77% and 57%, which is the trade.
+
+Three smaller repairs travel with it. Unicode *noncharacters* (U+FFFE and its
+kin) arrive from PDFium where a font maps a hyphenation point to an unassigned
+slot; one paper carried 87 of them, each corrupting the word it sat inside,
+while the page reported 0.98 confidence and no warning. They carry layout, not
+meaning, so they are resolved in `reading_text` and retained verbatim in `text`.
+A *private-use* character is the opposite case — a real glyph the font never
+mapped, such as Adobe's registered sign at U+F6D9 — so it is counted, kept, and
+reported as `PRIVATE_USE_CHARACTERS` rather than deleted or guessed at. And a
+running head set differently on facing pages had each variant land on about half
+the pages, so neither reached the 60% threshold and both were emitted as body
+text on every page; variants are now counted together and judged individually.
+
+Extracted source images are referenced in Markdown at the page they came from,
+grouped by page rather than composed into figures: Philon extracts embedded
+image streams and does not infer which of them make up one printed figure.
 
 **0.2.4** — A title that wraps is a heading again. 0.2.3 required a heading to
 be a single line, which kept prose out of the heading set but lost the titles

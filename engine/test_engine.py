@@ -140,7 +140,7 @@ class PhilonEngineTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "could not be parsed safely"):
                 engine.preflight_input(source)
 
-    def test_preflight_rejects_an_encrypted_pdf(self):
+    def test_preflight_rejects_a_pdf_that_really_needs_a_password(self):
         try:
             from pypdf import PdfWriter
         except ImportError:
@@ -152,8 +152,46 @@ class PhilonEngineTest(unittest.TestCase):
             writer.encrypt("local-password")
             with source.open("wb") as stream:
                 writer.write(stream)
-            with self.assertRaisesRegex(ValueError, "Encrypted PDFs"):
+            with self.assertRaisesRegex(ValueError, "needs a password"):
                 engine.preflight_input(source)
+
+    def test_preflight_accepts_a_pdf_whose_user_password_is_empty(self):
+        """A permissions-only PDF opens for anyone, so refusing it refused nothing.
+
+        Publisher PDFs are routinely encrypted with an empty user password and a
+        set owner password: every reader opens them without being asked, and
+        PDFium extracts their text with no password supplied. Philon refused
+        them as "encrypted", which turned a readable document into a dead end.
+        The outcome is recorded so the record still says the file was encrypted.
+        """
+        try:
+            from pypdf import PdfWriter
+        except ImportError:
+            self.skipTest("pypdf is not installed")
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "permissions-only.pdf"
+            writer = PdfWriter()
+            writer.add_blank_page(width=100, height=100)
+            writer.encrypt(user_password="", owner_password="owner-secret")
+            with source.open("wb") as stream:
+                writer.write(stream)
+            report = engine.preflight_input(source)
+            self.assertEqual(report["kind"], "pdf")
+            self.assertEqual(report["declared_page_count"], 1)
+            self.assertEqual(report["encryption"], "opened-with-empty-user-password")
+
+    def test_preflight_records_that_an_ordinary_pdf_was_not_encrypted(self):
+        try:
+            from pypdf import PdfWriter
+        except ImportError:
+            self.skipTest("pypdf is not installed")
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "plain.pdf"
+            writer = PdfWriter()
+            writer.add_blank_page(width=100, height=100)
+            with source.open("wb") as stream:
+                writer.write(stream)
+            self.assertEqual(engine.preflight_input(source)["encryption"], "none")
 
     def test_native_pdf_features_are_explicit_when_no_font_or_link_exists(self):
         try:
@@ -606,6 +644,197 @@ class PhilonEngineTest(unittest.TestCase):
         body = engine.make_block(page, 2, "Philon of Alexandria read one tradition in\nthe language of another, quoting the line\nbefore drawing out what it meant.", 67, 185)
         self.assertEqual(title["type"], "heading")
         self.assertEqual(body["type"], "paragraph")
+
+    def test_extracted_images_are_referenced_on_the_page_they_came_from(self):
+        """A machine reading only the Markdown must know a figure existed."""
+        ir = {
+            "document": {"source": {"filename": "paper.pdf"}},
+            "pages": [{"id": "page-1", "number": 1}, {"id": "page-2", "number": 2}],
+            "blocks": [
+                {"id": "b1", "page": "page-1", "type": "paragraph", "level": None, "text": "First page prose.", "source": {"confidence": 0.98}},
+                {"id": "b2", "page": "page-2", "type": "paragraph", "level": None, "text": "Second page prose.", "source": {"confidence": 0.98}},
+            ],
+            "document_artifacts": {"native_images": [
+                {"id": "img-1", "relative_path": "images/img-1.png", "source_pages": [1], "pixel_width": 640, "pixel_height": 480},
+                {"id": "img-2", "relative_path": "images/img-2.png", "source_pages": [2], "pixel_width": 100, "pixel_height": 100},
+            ]},
+        }
+        rendered = engine.render_markdown(ir)
+        first, second = rendered.index("images/img-1.png"), rendered.index("images/img-2.png")
+        self.assertLess(rendered.index("First page prose."), first)
+        self.assertLess(first, rendered.index("Second page prose."))
+        self.assertLess(rendered.index("Second page prose."), second)
+        self.assertIn("visual description requires review", rendered)
+        self.assertIn("640 \u00d7 480px", rendered)
+
+    def test_markdown_without_extracted_images_is_unchanged(self):
+        """The control: a document with no assets renders exactly as before."""
+        ir = {
+            "document": {"source": {"filename": "paper.pdf"}},
+            "pages": [{"id": "page-1", "number": 1}],
+            "blocks": [{"id": "b1", "page": "page-1", "type": "paragraph", "level": None,
+                        "text": "Only prose here.", "source": {"confidence": 0.98}}],
+        }
+        rendered = engine.render_markdown(ir)
+        self.assertNotIn("![", rendered)
+        self.assertNotIn("Evidence:", rendered)
+
+    def test_a_running_head_set_differently_on_facing_pages_is_still_suppressed(self):
+        """Neither variant reaches 60% of pages, so neither was ever removed."""
+        def page(number, head):
+            return {"number": number, "text": f"{head}\nBody text for this page.\n{number}"}
+        pages = [page(n, "Diffusion-based Image Mosaics GI 26" if n % 2 else "GI 26 Doyle and Mould")
+                 for n in range(1, 11)]
+        artifacts = engine.repeated_page_artifacts(pages)
+        self.assertIn(engine.normalise_artifact("GI 26 Doyle and Mould"), artifacts)
+        self.assertIn(engine.normalise_artifact("Diffusion-based Image Mosaics GI 26"), artifacts)
+
+    def test_a_line_that_merely_repeats_a_few_times_is_not_a_running_head(self):
+        """The control: strong evidence is still required."""
+        pages = [{"number": n, "text": f"Ordinary opening line {n}\nBody sentence number {n}.\n{n}"}
+                 for n in range(1, 11)]
+        pages[0]["text"] = "A shared opening line\nBody sentence number 1.\n1"
+        pages[1]["text"] = "A shared opening line\nBody sentence number 2.\n2"
+        self.assertEqual(engine.repeated_page_artifacts(pages), set())
+
+    def test_a_noncharacter_never_reaches_the_reading_text(self):
+        """U+FFFE is permanently invalid in interchange, and PDFium emits it.
+
+        A real paper produced 87 of them, each corrupting the word it sat
+        inside, while the page reported 0.98 confidence and no warning. They
+        carry layout, not meaning, so they are resolved in the reading form and
+        retained verbatim in `text`.
+        """
+        self.assertEqual(engine.clean_reading_text("a subject de\ufffepicted by fruit"),
+                         "a subject depicted by fruit")
+        self.assertEqual(engine.clean_reading_text("a subject de\ufffe\npicted by fruit"),
+                         "a subject depicted by fruit")
+        self.assertEqual(engine.clean_reading_text("veg\u00adetables"), "vegetables")
+        for text in ["a\ufffeb", "a\uffffb", "a\ufdd0b", "a\U0001fffeb"]:
+            self.assertEqual(engine.clean_reading_text(text), "ab", repr(text))
+
+    def test_a_private_use_character_is_reported_and_never_guessed_at(self):
+        """A glyph the font never mapped to Unicode is text Philon cannot read.
+
+        Adobe writes the registered sign at U+F6D9 and a maths font puts its own
+        brackets in the E000 block. Deleting them loses text; mapping them
+        invents it. They are counted, retained, and reported.
+        """
+        health = engine.native_health("Adobe Photoshop \uf6d9 and G \ue09ex\ue09f")
+        self.assertEqual(health["private_use_characters"], 3)
+        self.assertEqual(engine.clean_reading_text("Adobe Photoshop \uf6d9"), "Adobe Photoshop \uf6d9")
+        pages = [{"id": "page-1", "number": 1, "method": "pdfium-native",
+                  "route": {"native_text_health": health}}]
+        codes = [warning.code for warning in engine.verified_checks(pages, [])]
+        self.assertIn("PRIVATE_USE_CHARACTERS", codes)
+
+    def test_a_page_with_no_private_use_characters_raises_no_such_warning(self):
+        health = engine.native_health("Ordinary measured prose.")
+        self.assertEqual(health["private_use_characters"], 0)
+        pages = [{"id": "page-1", "number": 1, "method": "pdfium-native",
+                  "route": {"native_text_health": health}}]
+        self.assertNotIn("PRIVATE_USE_CHARACTERS",
+                         [warning.code for warning in engine.verified_checks(pages, [])])
+
+    def test_ordinary_text_is_untouched_by_the_noncharacter_repair(self):
+        """The control: the same routine must not disturb text without them."""
+        self.assertEqual(engine.clean_reading_text("a care-\nfully measured paragraph"),
+                         "a carefully measured paragraph")
+        self.assertEqual(engine.clean_reading_text("the first line\nand the second line"),
+                         "the first line and the second line")
+        self.assertEqual(engine.clean_reading_text("a well-known\nresult"), "a well-known result")
+        self.assertEqual(engine.clean_reading_text("Εισαγωγή στη μελέτη"), "Εισαγωγή στη μελέτη")
+
+    def test_the_source_text_keeps_the_noncharacter_as_evidence(self):
+        """`text` is the evidence; only the reading form is repaired."""
+        page = {"number": 1, "width": 612, "height": 792, "method": "pdfium-native", "text": ""}
+        block = engine.make_block(page, 1, "a subject de\ufffepicted by fruit")
+        self.assertIn("\ufffe", block["text"])
+        self.assertEqual(block["evidence"]["native_health"]["discardable_formatting_characters"], 1)
+        self.assertEqual(engine.clean_reading_text(block["text"]), "a subject depicted by fruit")
+        self.assertEqual(engine.machine_block_record(block, 1)["reading_text"],
+                         "a subject depicted by fruit")
+
+    def test_a_heading_is_recognised_by_the_face_the_page_sets_it_in(self):
+        """The text rules are ASCII-Latin; the face the page uses is not.
+
+        Without this, a Greek, Cyrillic or accented heading could never be a
+        heading in any profile, and neither could an English one ending in a
+        question mark or containing an ampersand.
+        """
+        body = {"differs_from_body": False, "bold": False, "face": "LinLibertineT"}
+        head = {"differs_from_body": True, "bold": True, "face": "LinLibertineTB"}
+        for title in ["Εισαγωγή", "Введение", "Éléments de méthode", "What is Philon?",
+                      "Design & Implementation", "はじめに"]:
+            self.assertEqual(engine.classify_block(title, typeface=head)[0], "heading", title)
+            # The control: the same words in the body face stay a paragraph, so
+            # the face is what decided it and not the words.
+            self.assertEqual(engine.classify_block(title, typeface=body)[0], "paragraph", title)
+
+    def test_the_face_rule_does_not_promote_a_bold_lead_in_paragraph(self):
+        head = {"differs_from_body": True, "bold": True, "face": "Times-Bold"}
+        sentence = "Artificial Mosaic - Given an image in the plane and a vector field defined on that region representing the edges, find N sites and place N rectangles."
+        self.assertEqual(engine.classify_block(sentence, typeface=head)[0], "paragraph")
+        self.assertEqual(engine.classify_block("A complete bold sentence.", typeface=head)[0], "paragraph")
+
+    def test_a_block_with_no_measured_face_classifies_exactly_as_before(self):
+        """The null. An OCR page and the pypdf fallback measure no face."""
+        for title in ["Εισαγωγή", "What is Philon?", "Introduction"]:
+            self.assertEqual(engine.classify_block(title, typeface=None),
+                             engine.classify_block(title))
+
+    def test_a_weight_suffix_counts_as_bolder_than_the_body_face(self):
+        self.assertTrue(engine._is_bolder_sibling("LinLibertineTB", "LinLibertineT"))
+        self.assertFalse(engine._is_bolder_sibling("LinLibertineTI", "LinLibertineT"))
+        self.assertFalse(engine._is_bolder_sibling("LinLibertineT", "LinLibertineT"))
+
+    def test_a_change_of_face_starts_a_new_block(self):
+        """A heading sits closer to the text it heads than to the text above it.
+
+        The gap rule alone therefore never separates one: on a two-column paper
+        every inter-line gap is under the 10pt floor, so the heading is absorbed
+        into the paragraph beneath it and stops existing as structure.
+        """
+        def line(text, start, end, y, font):
+            return {"text": text, "start": start, "end": end, "font": font, "size": 9.0,
+                    "bbox": engine.make_bbox(72, y, 400, y + 8, "pdf-page-points")}
+        page = {
+            "number": 1, "width": 612, "height": 792, "method": "pdfium-native",
+            "body_font": "LinLibertineT", "text": "",
+            "native_text_lines": [
+                line("2 Related Work", 0, 14, 700, "LinLibertineTB"),
+                line("While other mosaic types exist, such as", 15, 53, 693, "LinLibertineT"),
+                line("crystallization mosaics, we are concerned", 54, 95, 686, "LinLibertineT"),
+            ],
+        }
+        parts = engine.geometric_native_parts(page, set())
+        self.assertEqual(parts[0]["text"], "2 Related Work")
+        blocks = [engine.make_block(page, i + 1, part["text"], part.get("start"), part.get("end"))
+                  for i, part in enumerate(parts)]
+        self.assertEqual([block["type"] for block in blocks], ["heading", "paragraph"])
+        self.assertEqual(blocks[0]["level"], 1)
+
+    def test_lines_in_one_face_are_still_assembled_into_one_paragraph(self):
+        """The control for the rule above: same face, same block."""
+        def line(text, start, end, y):
+            return {"text": text, "start": start, "end": end, "font": "LinLibertineT", "size": 9.0,
+                    "bbox": engine.make_bbox(72, y, 400, y + 8, "pdf-page-points")}
+        page = {
+            "number": 1, "width": 612, "height": 792, "method": "pdfium-native",
+            "body_font": "LinLibertineT", "text": "",
+            "native_text_lines": [line("While other mosaic types exist,", 0, 31, 700),
+                                  line("we are concerned with photomosaics.", 32, 67, 693)],
+        }
+        self.assertEqual(len(engine.geometric_native_parts(page, set())), 1)
+
+    def test_the_document_body_face_is_taken_across_every_page(self):
+        """A page can be mostly heading; the document is not."""
+        pages = [
+            {"native_text_lines": [{"text": "A page of headings", "font": "Times-Bold", "size": 14.0}]},
+            {"native_text_lines": [{"text": "Ordinary body text runs on and on here", "font": "Times-Roman", "size": 10.0},
+                                   {"text": "and continues across a second measured line", "font": "Times-Roman", "size": 10.0}]},
+        ]
+        self.assertEqual(engine.document_body_typeface(pages)[0], "Times-Roman")
 
     def test_an_ocr_page_measures_no_type_size_and_keeps_the_single_line_rule(self):
         page = {"number": 1, "width": 612, "height": 792, "method": "apple-vision-ocr", "ocr_lines": []}
