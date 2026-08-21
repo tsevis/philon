@@ -156,6 +156,37 @@ describe("batch safety", () => {
     await openBatchWithBlockedDocument();
     expect(await screen.findByText("PDF signature is invalid.")).not.toBeNull();
   });
+
+  /// A queued document is drawn from the record the host returns. The whole
+  /// workspace used to disappear here, because the record arrived with its
+  /// fields renamed and the queue asked an absent path for its file name.
+  it("names a queued document the host has described", async () => {
+    const ready = { ...queued, source_path: "/docs/paper.pdf" };
+    respondWith({
+      enqueue_batch: "batch-1",
+      list_batch_items: [ready],
+      preflight_conversion: { items: [{ source_path: "/docs/paper.pdf", status: "ready", route: "native-text-pending", preflight: { kind: "pdf", bytes: 402144, declared_page_count: 12 } }] },
+    });
+    await renderWorkspace();
+    fireEvent.click(screen.getByRole("tab", { name: /Batch/i }));
+    bridge.open.mockResolvedValueOnce(["/docs/paper.pdf"]);
+    fireEvent.click(screen.getByRole("button", { name: /Add documents/i }));
+
+    expect(await screen.findByText("paper.pdf")).not.toBeNull();
+    expect(await screen.findByText(/PDF · 12 page\(s\) · 393 KB · queued/)).not.toBeNull();
+  });
+
+  it("offers a queued document's own path for inspection", async () => {
+    const ready = { ...queued, source_path: "/docs/paper.pdf" };
+    respondWith({ enqueue_batch: "batch-1", list_batch_items: [ready], preflight_conversion: { items: [] } });
+    await renderWorkspace();
+    fireEvent.click(screen.getByRole("tab", { name: /Batch/i }));
+    bridge.open.mockResolvedValueOnce(["/docs/paper.pdf"]);
+    fireEvent.click(screen.getByRole("button", { name: /Add documents/i }));
+
+    await waitFor(() => expect(callsTo("preflight_conversion").length).toBe(1));
+    expect((callsTo("preflight_conversion")[0]?.config as { inputPaths: string[] }).inputPaths).toEqual(["/docs/paper.pdf"]);
+  });
 });
 
 describe("preferences", () => {
