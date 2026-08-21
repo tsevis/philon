@@ -187,10 +187,15 @@ To rebuild and verify the ad-hoc signed DMG in the same sequence, run
 signature, so `codesign --verify` passes locally; it carries no Developer ID
 and is not notarized.
 
-`npm run release:verify` and the workflow run the same checks in the same
-order, so a local run is not a weaker one. Both workflows are enabled and run
-on macOS 15: `Verify Philon` on every push and pull request, `Package Philon`
-on a `v*` tag or a manual dispatch.
+`npm run release:verify` and the workflows run the same checks in the same
+order, so a local run is not a weaker one. That equivalence is the point:
+**both workflows are currently disabled**. They need `macos-15` runners, which
+this private repository is billed for at ten times the wall-clock minutes, and
+verification does not depend on them. Re-enable either with
+`gh workflow enable "Verify Philon"`.
+
+`npm run release:verify -- --package` additionally produces and checksums the
+DMG, which is what `Package Philon` uploads when it is enabled.
 
 Packaging and notarization require the project owner's Apple Developer
 signing credentials; no signing identity is embedded in this repository.
