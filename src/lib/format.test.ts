@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { basename, bytesLabel, confidenceLabel, timestampLabel } from "./format";
+import { basename, bytesLabel, confidenceLabel, isAnchorableLink, linkSummary, timestampLabel } from "./format";
 
 describe("basename", () => {
   it("names the document rather than its containing path", () => {
@@ -75,5 +75,31 @@ describe("timestampLabel", () => {
     expect(timestampLabel(undefined)).toBe("Date not recorded");
     expect(timestampLabel(null)).toBe("Date not recorded");
     expect(timestampLabel("")).toBe("Date not recorded");
+  });
+});
+
+describe("isAnchorableLink", () => {
+  it("accepts the schemes the exports will make clickable", () => {
+    for (const uri of ["https://a.test/x", "http://a.test/x", "MailTo:someone@a.test"]) expect(isAnchorableLink(uri)).toBe(true);
+  });
+
+  it("refuses anything else a PDF may declare", () => {
+    for (const uri of ["javascript:alert(1)", "file:///etc/passwd", "data:text/html,<b>", "", "  "]) expect(isAnchorableLink(uri)).toBe(false);
+  });
+});
+
+describe("linkSummary", () => {
+  it("says so when the source declared none", () => {
+    expect(linkSummary(undefined)).toBe("None declared");
+    expect(linkSummary([])).toBe("None declared");
+  });
+
+  it("counts the anchored ones", () => {
+    expect(linkSummary([{ uri: "https://a.test" }])).toBe("1 anchored");
+  });
+
+  it("names a withheld target rather than dropping it silently", () => {
+    expect(linkSummary([{ uri: "javascript:x" }])).toBe("1 declared, none an anchorable scheme");
+    expect(linkSummary([{ uri: "https://a.test" }, { uri: "file:///x" }])).toBe("1 anchored, 1 withheld as unanchorable");
   });
 });

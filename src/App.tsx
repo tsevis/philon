@@ -28,7 +28,7 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BatchItem, BlockResult, ConversionResult, DocumentResult, HistoryItem, ModelPack, PreflightItem, Profile } from "./lib/types";
-import { basename, bytesLabel, confidenceLabel, timestampLabel } from "./lib/format";
+import { basename, bytesLabel, confidenceLabel, linkSummary, timestampLabel } from "./lib/format";
 import type { OutputChoice, Preferences } from "./lib/preferences";
 import { defaultPreferences, loadPreferences, outputChoices, profiles } from "./lib/preferences";
 import { Splash, rememberSplashSeen, splashWanted } from "./Splash";
@@ -117,6 +117,10 @@ function EvidencePanel({ document, selectedBlockId, onSelectBlock, onReview, onR
         <strong>{document.pages.find((page) => page.id === block?.page)?.route?.decision.replaceAll("-", " ") || "Not recorded"}</strong>
         <span>Source region</span>
         <strong>{block?.bbox ? `Measured · ${block.bbox.coordinate_space.replaceAll("-", " ")}` : "No measured region"}</strong>
+        <span>Page rotation</span>
+        <strong>{document.pages.find((page) => page.id === block?.page)?.rotation ? `${document.pages.find((page) => page.id === block?.page)?.rotation}°, measured as displayed` : "Upright"}</strong>
+        <span>Source links</span>
+        <strong>{linkSummary(block?.links)}</strong>
         <span>Native assets</span>
         <strong>{document.outputs.extracted_assets ? `${document.outputs.extracted_assets.items.length} extracted with provenance` : "None extracted"}</strong>
         <span>Source markers</span>
@@ -275,6 +279,10 @@ function App() {
   const [preferences, setPreferences] = useState<Preferences>(loadPreferences);
   const [profile, setProfile] = useState<Profile>(() => loadPreferences().defaultProfile);
   const [singlePath, setSinglePath] = useState<string | null>(null);
+  // Passed to the engine as written. The engine owns the grammar and refuses a
+  // malformed selection with its own wording, so reading it again here could
+  // only drift from the reading that decides what is converted.
+  const [pages, setPages] = useState("");
   const [batchPaths, setBatchPaths] = useState<string[]>([]);
   const [batchPreflight, setBatchPreflight] = useState<PreflightItem[]>([]);
   const [batchId, setBatchId] = useState<string | null>(null);
@@ -481,7 +489,7 @@ function App() {
     try {
       const data = tab === "batch" && batchId
         ? await invoke<ConversionResult>("run_batch", { batchId, jobId })
-        : await invoke<ConversionResult>("run_conversion", { config: { inputPaths: paths, profile, outputs: preferences.outputs, cachePolicy: preferences.cachePolicy, jobId } });
+        : await invoke<ConversionResult>("run_conversion", { config: { inputPaths: paths, profile, outputs: preferences.outputs, cachePolicy: preferences.cachePolicy, jobId, pages: pages.trim() || undefined } });
       setResult(data);
       setSelectedBlockId(null);
       if (batchId) await loadBatch(batchId);
@@ -606,7 +614,7 @@ function App() {
         {view === "workspace" && <div className="workspace-command-bar">
           <div className="job-tabs" role="tablist" aria-label="Job type"><button id="single-job-tab" role="tab" aria-controls="single-job-panel" aria-selected={tab === "single"} className={tab === "single" ? "is-active" : ""} onClick={() => setTab("single")} type="button"><FileArrowUp size={17} /> Single Job</button><button id="batch-tab" role="tab" aria-controls="batch-panel" aria-selected={tab === "batch"} className={tab === "batch" ? "is-active" : ""} onClick={() => setTab("batch")} type="button"><ListChecks size={17} /> Batch</button></div>
           {tab === "single" && <><button className="open-document-button" onClick={() => void chooseSingle()} type="button"><FolderOpen size={17} /> Open a document</button>{singlePath && <span className="selected-document-name" title={basename(singlePath)}>{basename(singlePath)}</span>}</>}
-          <div className="command-actions"><ProfilePicker profile={profile} onChange={setProfile} />{activeDocument && tab === "single" && <button className="secondary-button" onClick={() => void exportActiveDocument()} type="button"><DownloadSimple size={17} /> Export…</button>}<button className="primary-button" onClick={() => void convert(tab === "single" ? (singlePath ? [singlePath] : []) : batchPaths)} disabled={(tab === "single" ? !singlePath : !batchPaths.length || batchPreflight.some((item) => item.status === "blocked")) || running} type="button">{running ? "Converting…" : <><Play size={17} weight="fill" /> Convert</>}</button></div>
+          <div className="command-actions">{tab === "single" && <input className="pages-field" type="text" inputMode="numeric" maxLength={64} value={pages} placeholder="All pages" aria-label="Pages to convert" title="Pages to convert, counted from one: 1-5,8. Leave empty for the whole document." onChange={(event) => setPages(event.target.value)} />}<ProfilePicker profile={profile} onChange={setProfile} />{activeDocument && tab === "single" && <button className="secondary-button" onClick={() => void exportActiveDocument()} type="button"><DownloadSimple size={17} /> Export…</button>}<button className="primary-button" onClick={() => void convert(tab === "single" ? (singlePath ? [singlePath] : []) : batchPaths)} disabled={(tab === "single" ? !singlePath : !batchPaths.length || batchPreflight.some((item) => item.status === "blocked")) || running} type="button">{running ? "Converting…" : <><Play size={17} weight="fill" /> Convert</>}</button></div>
         </div>}
         {error && <div className="error-banner"><WarningCircle size={19} weight="fill" /><span>{error}</span><button onClick={() => setError(null)} type="button" aria-label="Dismiss error"><X size={17} /></button></div>}
         {notice && <div className="notice-banner"><CheckCircle size={18} weight="fill" /><span>{notice}</span><button onClick={() => setNotice(null)} type="button" aria-label="Dismiss notice"><X size={17} /></button></div>}

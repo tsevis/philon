@@ -68,6 +68,29 @@ describe("conversion gating", () => {
     expect(config.cachePolicy).toBe("use");
   });
 
+  it("leaves the page selection out entirely when the field is empty", async () => {
+    respondWith({ run_conversion: conversionResult() });
+    await renderWorkspace();
+    await chooseDocument();
+    fireEvent.click(convertButton());
+    await waitFor(() => expect(callsTo("run_conversion").length).toBe(1));
+    const config = callsTo("run_conversion")[0]?.config as Record<string, unknown>;
+    // Absent, not "": the engine reads an absent selection as the whole
+    // document, and an empty string would be a selection that matched nothing.
+    expect(config.pages).toBeUndefined();
+  });
+
+  it("sends the page selection as written, for the engine to read", async () => {
+    respondWith({ run_conversion: conversionResult() });
+    await renderWorkspace();
+    await chooseDocument();
+    fireEvent.change(screen.getByLabelText("Pages to convert"), { target: { value: " 1-5,8 " } });
+    fireEvent.click(convertButton());
+    await waitFor(() => expect(callsTo("run_conversion").length).toBe(1));
+    const config = callsTo("run_conversion")[0]?.config as Record<string, unknown>;
+    expect(config.pages).toBe("1-5,8");
+  });
+
   it("never requests the compatibility output unless it was turned on", async () => {
     respondWith({ run_conversion: conversionResult() });
     await renderWorkspace();
