@@ -13,7 +13,7 @@ export type OutputPaths = {
   markdown: string;
   html: string;
   ir: string;
-  marker_json?: string;
+  page_tree?: string;
   chunks: string;
   embeddings?: string;
   evidence: string;

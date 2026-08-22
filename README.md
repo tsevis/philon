@@ -234,11 +234,11 @@ For each input, Philon also creates a dedicated export directory containing:
 - `philon-output-manifest.json` stable relative file paths and SHA-256 hashes
 - `assets/page-previews/*.png` local review rasters used for source/evidence overlays
 - `images/*` native PDF image streams, deduplicated by hash with a page/object provenance manifest
-- optional `*.marker.json` compatibility output with embedded image data
+- optional `*.page-tree.json` interchange output with embedded image data
 - `tables/*.csv` for native tables whose delimiter and row shape were provable
 
 The machine package, clean Markdown, and presentation HTML are selected by
-default. Marker JSON remains available as an explicit compatibility option.
+default. The page-tree JSON remains available as an explicit interchange option.
 Export directories include a source-hash and profile suffix. This prevents two
 unrelated `paper.pdf` files from overwriting one another, while each exported
 text file is committed atomically. Markdown, semantic HTML, and the Philon IR

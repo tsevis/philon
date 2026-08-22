@@ -369,7 +369,7 @@ class ConvertRequestContractTest(unittest.TestCase):
                     }
                 }
             )
-        response["outputs"].append("marker_json")
+        response["outputs"].append("page_tree")
         self.assertEqual(requested, ["ir", "evidence"])
 
     def test_a_convert_response_records_its_local_only_provenance(self):

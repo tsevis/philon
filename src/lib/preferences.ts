@@ -8,10 +8,10 @@ export const profiles: Array<{ name: Profile; description: string }> = [
   { name: "Verified", description: "Stricter checks and more review signals." },
 ];
 
-export const outputChoices = ["machine", "markdown", "html", "ir", "chunks", "evidence", "table_csv", "assets", "manifest", "marker_json"] as const;
+export const outputChoices = ["machine", "markdown", "html", "ir", "chunks", "evidence", "table_csv", "assets", "manifest", "page_tree"] as const;
 export type OutputChoice = typeof outputChoices[number];
 export type Preferences = { defaultProfile: Profile; cachePolicy: "use" | "refresh" | "bypass"; outputs: OutputChoice[]; enabledModelIds: string[] };
-export const defaultPreferences: Preferences = { defaultProfile: "Balanced", cachePolicy: "use", outputs: outputChoices.filter((output) => output !== "marker_json"), enabledModelIds: [] };
+export const defaultPreferences: Preferences = { defaultProfile: "Balanced", cachePolicy: "use", outputs: outputChoices.filter((output) => output !== "page_tree"), enabledModelIds: [] };
 
 function fallbackPreferences(): Preferences {
   return { ...defaultPreferences, outputs: [...defaultPreferences.outputs], enabledModelIds: [] };

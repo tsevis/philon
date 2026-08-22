@@ -98,7 +98,7 @@ describe("conversion gating", () => {
     fireEvent.click(convertButton());
     await waitFor(() => expect(callsTo("run_conversion").length).toBe(1));
     const config = callsTo("run_conversion")[0]?.config as { outputs: string[] };
-    expect(config.outputs).not.toContain("marker_json");
+    expect(config.outputs).not.toContain("page_tree");
     expect(config.outputs).toContain("markdown");
   });
 
@@ -216,10 +216,10 @@ describe("preferences", () => {
   it("persists a changed output selection for the next session", async () => {
     await renderWorkspace();
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    fireEvent.click(await screen.findByLabelText("Marker JSON (compatibility)"));
+    fireEvent.click(await screen.findByLabelText("Page tree JSON (interchange)"));
     await waitFor(() => {
       const stored = JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY) || "{}");
-      expect(stored.outputs).toContain("marker_json");
+      expect(stored.outputs).toContain("page_tree");
     });
   });
 

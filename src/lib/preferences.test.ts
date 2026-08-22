@@ -54,13 +54,13 @@ describe("parsePreferences", () => {
 
   it("never hands back the shared default arrays for a caller to mutate", () => {
     const first = parsePreferences(null);
-    first.outputs.push("marker_json");
+    first.outputs.push("page_tree");
     expect(parsePreferences(null).outputs).toEqual(defaultPreferences.outputs);
-    expect(defaultPreferences.outputs).not.toContain("marker_json");
+    expect(defaultPreferences.outputs).not.toContain("page_tree");
   });
 
   it("leaves the compatibility output off by default", () => {
-    expect(defaultPreferences.outputs).not.toContain("marker_json");
-    expect(outputChoices).toContain("marker_json");
+    expect(defaultPreferences.outputs).not.toContain("page_tree");
+    expect(outputChoices).toContain("page_tree");
   });
 });
