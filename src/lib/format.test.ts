@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { basename, bytesLabel, confidenceLabel, isAnchorableLink, linkSummary, timestampLabel } from "./format";
+import { basename, bytesLabel, confidenceLabel, isAnchorableLink, linkSummary, ruledTableSummary, timestampLabel } from "./format";
 
 describe("basename", () => {
   it("names the document rather than its containing path", () => {
@@ -85,6 +85,30 @@ describe("isAnchorableLink", () => {
 
   it("refuses anything else a PDF may declare", () => {
     for (const uri of ["javascript:alert(1)", "file:///etc/passwd", "data:text/html,<b>", "", "  "]) expect(isAnchorableLink(uri)).toBe(false);
+  });
+});
+
+describe("ruledTableSummary", () => {
+  it("says so when the page ruled nothing", () => {
+    expect(ruledTableSummary(undefined, undefined)).toBe("None ruled");
+    expect(ruledTableSummary(undefined, { ruled_tables: [] })).toBe("None ruled");
+  });
+
+  it("names the grid the selected block was recovered from", () => {
+    expect(ruledTableSummary({ table: { row_count: 3, column_count: 4 } }, { ruled_tables: [{ complete: true }] }))
+      .toBe("3 × 4 recovered from ruled geometry");
+  });
+
+  it("counts what the page recovered when the block is not a table", () => {
+    expect(ruledTableSummary(undefined, { ruled_tables: [{ complete: true }, { complete: true }] }))
+      .toBe("2 recovered on this page");
+  });
+
+  it("reports a lattice that did not close rather than hiding it", () => {
+    expect(ruledTableSummary(undefined, { ruled_tables: [{ complete: false }] }))
+      .toBe("1 ruled, none closing into a full grid");
+    expect(ruledTableSummary(undefined, { ruled_tables: [{ complete: true }, { complete: false }] }))
+      .toBe("1 recovered, 1 not closed");
   });
 });
 

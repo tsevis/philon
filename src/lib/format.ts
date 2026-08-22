@@ -51,3 +51,25 @@ export function linkSummary(links: Array<{ uri: string }> | undefined) {
   if (!anchored) return `${withheld} declared, none an anchorable scheme`;
   return `${anchored} anchored, ${withheld} withheld as unanchorable`;
 }
+
+/**
+ * What the page's own rules came to, for the block a reviewer has selected.
+ *
+ * A lattice that does not close is counted rather than hidden. It is the case
+ * where Philon found the shape of a table and refused to guess its cells, and
+ * a reviewer looking for a table that did not arrive should be told that is
+ * what happened rather than left to conclude nothing was found.
+ */
+export function ruledTableSummary(
+  block: { table?: { row_count: number; column_count: number } | null } | undefined,
+  page: { ruled_tables?: Array<{ complete: boolean }> } | undefined,
+) {
+  if (block?.table) return `${block.table.row_count} × ${block.table.column_count} recovered from ruled geometry`;
+  const grids = page?.ruled_tables ?? [];
+  if (!grids.length) return "None ruled";
+  const recovered = grids.filter((grid) => grid.complete).length;
+  const open = grids.length - recovered;
+  if (!open) return `${recovered} recovered on this page`;
+  if (!recovered) return `${open} ruled, none closing into a full grid`;
+  return `${recovered} recovered, ${open} not closed`;
+}

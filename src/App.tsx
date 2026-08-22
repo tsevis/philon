@@ -28,7 +28,7 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BatchItem, BlockResult, ConversionResult, DocumentResult, HistoryItem, ModelPack, PreflightItem, Profile } from "./lib/types";
-import { basename, bytesLabel, confidenceLabel, linkSummary, timestampLabel } from "./lib/format";
+import { basename, bytesLabel, confidenceLabel, linkSummary, ruledTableSummary, timestampLabel } from "./lib/format";
 import type { OutputChoice, Preferences } from "./lib/preferences";
 import { defaultPreferences, loadPreferences, outputChoices, profiles } from "./lib/preferences";
 import { Splash, rememberSplashSeen, splashWanted } from "./Splash";
@@ -121,6 +121,8 @@ function EvidencePanel({ document, selectedBlockId, onSelectBlock, onReview, onR
         <strong>{document.pages.find((page) => page.id === block?.page)?.rotation ? `${document.pages.find((page) => page.id === block?.page)?.rotation}°, measured as displayed` : "Upright"}</strong>
         <span>Source links</span>
         <strong>{linkSummary(block?.links)}</strong>
+        <span>Ruled tables</span>
+        <strong>{ruledTableSummary(block, document.pages.find((page) => page.id === block?.page))}</strong>
         <span>Native assets</span>
         <strong>{document.outputs.extracted_assets ? `${document.outputs.extracted_assets.items.length} extracted with provenance` : "None extracted"}</strong>
         <span>Source markers</span>

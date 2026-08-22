@@ -36,6 +36,8 @@ export type PageResult = {
   rotation?: number;
   route?: { decision: string; reason: string; suggested_dpi: number | null; automatic_model_execution: boolean };
   source_artifacts?: { numeric_markers: Array<{ text: string; bbox: BlockResult["bbox"] }> };
+  /** Grids measured from the rules this page draws. An incomplete one encloses no proven cells. */
+  ruled_tables?: Array<{ bbox: BlockResult["bbox"]; row_count: number; column_count: number; complete: boolean; crossing_count: number }>;
   block_ids: string[];
 };
 
@@ -49,6 +51,8 @@ export type BlockResult = {
   source: { method: string; confidence: number; language: string };
   /** Link annotations the PDF declared, measured onto the characters they cover. */
   links?: Array<{ uri: string; text: string; bbox?: BlockResult["bbox"] }>;
+  /** Cells recovered from the rules the page drew around them, never from alignment. */
+  table?: { rows: string[][]; row_count: number; column_count: number; source: string } | null;
   evidence: { validation: string[]; alternatives: unknown[]; repair_history: unknown[]; findings?: Record<string, unknown> };
   review?: { action: string; at: string; actor: string; status?: string; reason?: string };
 };
