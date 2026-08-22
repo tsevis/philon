@@ -35,7 +35,8 @@ smoothing it into fluent text nobody can go back and verify.
 Three panels, always together. The **source** as Philon read it, the
 **conversion** it produced, and the **evidence** behind the selected block —
 which method read it, how confident that reading is, whether the source region
-was measured, and what the Verified checks found. Selecting a block in either
+was measured, whether the page it sits on is rotated, what the source declared
+by way of links, and what the Verified checks found. Selecting a block in either
 of the first two panels moves the other two with it.
 
 The warnings on the right are not decoration. `READING ORDER AMBIGUOUS` means
@@ -46,8 +47,11 @@ review rather than guessing.
 ## What it does
 
 - **Evidence for every block.** A versioned Philon IR carries source method,
-  confidence, validation record, warnings, measured source geometry, and stable
-  block IDs.
+  confidence, validation record, warnings, measured source geometry, the page's
+  own rotation, the links its source declared, and stable block IDs. Geometry is
+  measured in the frame the page is *displayed* in: PDFium reports page size
+  with `/Rotate` applied and text rectangles without it, and recording the two
+  as though they shared a frame put a rectangle outside the page it belonged to.
 - **Native structure first.** PDFium-first extraction, with Apple Vision for
   on-device recognition of images and textless pages. A page that cannot be read
   is reported, never invented.
@@ -60,6 +64,17 @@ review rather than guessing.
   the whole document. The selection is part of the cache key and of the export
   directory name, so a conversion of ten pages is never served for, or written
   over, the conversion of the whole book.
+- **The links a PDF declared.** A link annotation carries a target and a
+  rectangle. Which characters that rectangle covers is measured, one character
+  box at a time, so a rectangle over no text is reported with no anchor rather
+  than attached to whatever was nearest. Only `http`, `https` and `mailto`
+  become clickable: a PDF may declare any URI, `javascript:` included, and the
+  presentation export is a document someone opens locally. The rest stay
+  recorded as evidence, where they can be seen.
+- **Running heads, even when they carry a folio.** A head printed as
+  "Symmetries of Culture 47" is a different string on every page it appears on.
+  The number is set aside before counting, so the head is recognised as an
+  artifact instead of being emitted as body text on every page of a book.
 - **Intake preflight.** Invalid signatures, empty files, password-protected
   PDFs, and documents beyond the V1 size and page limits are refused before
   extraction. A PDF that is encrypted with an *empty* user password is opened,
