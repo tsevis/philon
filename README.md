@@ -249,8 +249,16 @@ Use the private-corpus harness in [`bench/README.md`](bench/README.md) to record
 ## Releases
 
 A version number here describes the application. The engine contract and the IR
-version are deliberately separate and both remain at 0.2.0, so a document
-converted by any 0.2.x build carries the same evidence shape.
+version are deliberately separate from it and from each other. The engine
+contract remains at 0.2.0. The IR is at **0.3.0**: it gained the page's own
+`/Rotate`, the source-declared links measured onto each block, and the page
+selection a conversion covers, so a document converted by a build carrying that
+IR version has that evidence shape and says so in `philon_ir_version`.
+
+A cache entry is named after the IR version it holds, so an entry written
+against an older shape is never reached rather than being read and rejected. An
+entry that cannot be read back is recomputed from the source: reuse is an
+optimisation, and a broken optimisation must not be able to refuse a document.
 
 **0.2.5** — The Batch tab kept its documents. Adding a document emptied the
 window: the queue reads each row from the record `list_batch_items` returns,
