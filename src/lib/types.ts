@@ -32,6 +32,8 @@ export type PageResult = {
   height: number;
   method: string;
   confidence: number;
+  /** The page's own /Rotate. Measurements below are reconciled into the frame it is displayed in. */
+  rotation?: number;
   route?: { decision: string; reason: string; suggested_dpi: number | null; automatic_model_execution: boolean };
   source_artifacts?: { numeric_markers: Array<{ text: string; bbox: BlockResult["bbox"] }> };
   block_ids: string[];
@@ -45,6 +47,8 @@ export type BlockResult = {
   text: string;
   bbox?: { x0: number; y0: number; x1: number; y1: number; coordinate_space: string; origin: "bottom-left" } | null;
   source: { method: string; confidence: number; language: string };
+  /** Link annotations the PDF declared, measured onto the characters they cover. */
+  links?: Array<{ uri: string; text: string; bbox?: BlockResult["bbox"] }>;
   evidence: { validation: string[]; alternatives: unknown[]; repair_history: unknown[]; findings?: Record<string, unknown> };
   review?: { action: string; at: string; actor: string; status?: string; reason?: string };
 };

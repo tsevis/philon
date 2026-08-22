@@ -56,6 +56,10 @@ review rather than guessing.
   input. `Verified` adds deterministic source-geometry, duplicate-content, and
   reading-order ambiguity checks; it reports uncertainty for review rather than
   changing source order.
+- **A page range when you want one.** A Single Job converts `1-5,8` instead of
+  the whole document. The selection is part of the cache key and of the export
+  directory name, so a conversion of ten pages is never served for, or written
+  over, the conversion of the whole book.
 - **Intake preflight.** Invalid signatures, empty files, password-protected
   PDFs, and documents beyond the V1 size and page limits are refused before
   extraction. A PDF that is encrypted with an *empty* user password is opened,

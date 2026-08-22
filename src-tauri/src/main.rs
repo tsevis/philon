@@ -39,6 +39,10 @@ struct JobConfig {
     outputs: Option<Vec<String>>,
     local_repair: Option<bool>,
     cache_policy: Option<String>,
+    /// A 1-based page selection such as "1-5,8". Passed through as written:
+    /// the engine owns the grammar, and a second reading of it here could
+    /// drift from the one that decides what is actually converted.
+    pages: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -409,7 +413,8 @@ fn run_conversion_inner(app: AppHandle, state: &EngineState, config: JobConfig) 
             // document inspection, not an optional batch-only enhancement.
             "outputs": config.outputs.unwrap_or_else(|| vec!["machine".into(), "markdown".into(), "html".into(), "ir".into(), "chunks".into(), "evidence".into(), "table_csv".into(), "assets".into(), "manifest".into()]),
             "local_repair": config.local_repair.unwrap_or(false),
-            "cache_policy": config.cache_policy.unwrap_or_else(|| "use".into())
+            "cache_policy": config.cache_policy.unwrap_or_else(|| "use".into()),
+            "pages": config.pages
         }
     });
     let result = engine_call_with_progress(&app, &state, request, |payload| {
