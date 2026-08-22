@@ -48,7 +48,8 @@ review rather than guessing.
 
 - **Evidence for every block.** A versioned Philon IR carries source method,
   confidence, validation record, warnings, measured source geometry, the page's
-  own rotation, the links its source declared, and stable block IDs. Geometry is
+  own rotation, the links its source declared, the tables recovered from the
+  rules it draws, and stable block IDs. Geometry is
   measured in the frame the page is *displayed* in: PDFium reports page size
   with `/Rotate` applied and text rectangles without it, and recording the two
   as though they shared a frame put a rectangle outside the page it belonged to.
@@ -133,7 +134,7 @@ loading a model or making a network request.
 
 Philon does not reuse Marker code or models.
 
-The current engine also marks repeated page artifacts, retains a per-page routing decision, detects only safely delimited native tables for CSV export, flags formula-like native blocks, and records local human review decisions as reversible provenance. It does not yet perform geometric table recovery, formula recognition, or automatic VLM repair.
+The current engine also marks repeated page artifacts, retains a per-page routing decision, recovers ruled tables from the rules a page draws, exports safely delimited native tables, flags formula-like native blocks, and records local human review decisions as reversible provenance. It does not yet perform formula recognition or automatic VLM repair.
 
 `Fast` is native-text only and never invokes OCR. `Balanced` is the default,
 using Apple Vision only for image or textless-PDF input. `Verified` adds
@@ -250,7 +251,7 @@ For each input, Philon also creates a dedicated export directory containing:
 - `assets/page-previews/*.png` local review rasters used for source/evidence overlays
 - `images/*` native PDF image streams, deduplicated by hash with a page/object provenance manifest
 - optional `*.page-tree.json` interchange output with embedded image data
-- `tables/*.csv` for native tables whose delimiter and row shape were provable
+- `tables/*.csv` for tables recovered from a page's own rules, and for native tables whose delimiter and row shape were provable
 
 The machine package, clean Markdown, and presentation HTML are selected by
 default. The page-tree JSON remains available as an explicit interchange option.
@@ -269,10 +270,12 @@ Use the private-corpus harness in [`bench/README.md`](bench/README.md) to record
 
 A version number here describes the application. The engine contract and the IR
 version are deliberately separate from it and from each other. The engine
-contract remains at 0.2.0. The IR is at **0.3.0**: it gained the page's own
-`/Rotate`, the source-declared links measured onto each block, and the page
-selection a conversion covers, so a document converted by a build carrying that
-IR version has that evidence shape and says so in `philon_ir_version`.
+contract remains at 0.2.0. The IR is at **0.4.0**: it gained the tables
+recovered from the rules a page draws, as `ruled_tables` on each page record and
+as a `table` of proven cells on each block one encloses. 0.3.0 had added the
+page's own `/Rotate`, the source-declared links measured onto each block, and
+the page selection a conversion covers. A document converted by a build carrying
+an IR version has that evidence shape and says so in `philon_ir_version`.
 
 A cache entry is named after the IR version it holds, so an entry written
 against an older shape is never reached rather than being read and rejected. An
@@ -324,6 +327,40 @@ Proving that equivalence surfaced a separate defect, which is recorded and not
 fixed: one CCITT fax image in a reference paper fails to decode and produces
 **different bytes on every extraction**, so its `bytes_sha256` — its provenance
 — changes run to run. See `documents/CACHE_BOUNDARY_AND_ASSET_COST.md`.
+
+**Unreleased** — Tables recovered from the rules a page draws. Philon exported
+only tables whose text carried a delimiter, which is the smaller half of the
+problem: a ruled table has no delimiter at all. Its columns are separated by
+geometry, so on a page that draws a full grid the export produced a paragraph
+of run-together cells and the CSV produced nothing.
+
+A rule is now read from PDFium's own path objects, by **bounds** rather than by
+parsing segments — a rule is as often a thin filled rectangle as a stroked line,
+and a segment reader sees the fill and misses the rule. Rules that cross enclose
+cells; rules that merely share a page do not, so the crossings are followed as a
+graph and each connected group is one candidate table. A cell's text is the
+characters whose own centres land inside it, reusing the character scan already
+written for link anchoring.
+
+The alternative was pdfplumber, which was evaluated and rejected. It recovers
+the same 3x3 fixture exactly, and costs `pdfminer.six`, `charset-normalizer`,
+`cryptography`, `cffi` and `pycparser` — four runtime dependencies becoming
+nine, ~25MB including a compiled Rust crypto library, and five new SBOM entries
+per project. pypdfium2 was already a dependency and already open on the page.
+
+Two decisions are worth stating. Rules are classified **after** the rectangle is
+moved into the displayed frame, not before: on a quarter-turned page the rules
+that separate rows on screen run across the page's own frame, and classifying
+first arrives at every landscape table with its rows and columns transposed —
+the same frame confusion that put a text rectangle outside its page.
+
+And a lattice whose every horizontal does not meet every vertical is **reported
+rather than completed**. A merged cell, or a rule drawn only under the headings,
+leaves a shape the lines alone do not determine; Philon records
+`RULED_TABLE_INCOMPLETE` and emits no table. Whitespace-aligned columns are not
+recovered at all. On the fixture pdfplumber's `text` strategy returned 13 rows
+with blanks and merged two separate tables into one — which is the difference
+between a table a page proves and a table a reader infers.
 
 **Unreleased** — Structure from the face the page sets it in. Measuring a
 heading by the height of its glyph boxes inverts on a line with no descender: on
