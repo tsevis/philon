@@ -355,7 +355,9 @@ review rather than inventing image alt text.
 
 ## Benchmarks
 
-Use the private-corpus harness in [`bench/README.md`](bench/README.md) to record local runs, including cold/warm timing, cache use, source-map coverage, output-contract failures, and optional private-gold accuracy metrics. Public claims against Marker or Docling remain blocked until the same version-pinned corpus, hardware, and methodology have been run — and the comparator's own version is part of what must be pinned and recorded, since the heading figures above are true of marker-pdf 1.10.2 and were never re-measured against 2.0.
+Use the private-corpus harness in [`bench/README.md`](bench/README.md) to record local runs, including cold/warm timing, cache use, source-map coverage, output-contract failures, and optional private-gold accuracy metrics. Every result now also records each document's filename, size and SHA-256, so a later run can prove it read the same bytes without the corpus leaving the machine.
+
+Public claims against Marker or Docling remain **blocked** until the same version-pinned corpus, hardware, and methodology have been run. A first run against **marker-pdf 2.0.0** was recorded on 2026-08-23 — macOS 15.6 arm64, Balanced profile, two born-digital documents — and does not lift that gate: two documents on one machine is a measurement, not a claim, and it is not the corpus the heading figures above were taken on. On those two, Philon converted in 5.7s over 26 pages and 4.3s over 15 pages against Marker's 43.7s and 28.3s of wall time. Roughly 17s of each of Marker's figures is one-off model loading, which it reports itself: 24.7s and 10.3s of the wall time was conversion. Stating it both ways is the point — the wall-clock ratio is what one document costs a person, and the conversion-only ratio is what survives batching.
 
 ## Releases
 
@@ -526,10 +528,18 @@ Philon found — same bold face as the section Marker did mark), and **96% at
 
 Those figures, and the recall figures in the section below, were measured on
 2026-08-21 against **marker-pdf 1.10.2** (`v1.10.2-13-g6ae3889`), which was
-what the local checkout held at the time. Marker has since moved to 2.0.0. The
-numbers are not restated against it and are not claimed to hold against it: they
-say what they say about the version named here, and re-measuring is one of the
-runs still owed under Benchmarks.
+what the local checkout held at the time. Marker has since moved to 2.0.0, and
+**they have not been restated against it.** They say what they say about the
+version named here.
+
+They cannot be restated, as things stand, and the reason is worth recording:
+the three papers were never written down. A benchmark result the harness
+produced named the machine, the profile and the corpus *name* — and not one
+word about which files it read. That is now fixed; every result records each
+document's filename, size and SHA-256, so two runs carrying the same digests
+provably read the same bytes and a private corpus still never leaves the
+machine. The three papers behind the figures above predate that, so which
+documents they were is not recoverable from anything in this repository.
 
 The one remaining difference is deliberate. Marker renders `Algorithm 1 Compute
 loss` as a heading; Philon calls it a **caption**, because a figure, a table and
