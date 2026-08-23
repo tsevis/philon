@@ -727,7 +727,7 @@ async fn remove_model(app: AppHandle, state: State<'_, EngineState>, pack_id: St
 
 #[cfg(test)]
 mod tests {
-    use super::{batch_status_after_run, publish_completed_batch_document, session_token, stop_engine_process, BatchItem, JobHistory};
+    use super::{batch_status_after_run, publish_completed_batch_document, session_token, stop_engine_process, BatchItem, JobHistory, MENU_COMMANDS};
     use std::fs;
     use std::os::unix::process::CommandExt;
     use std::process::Command;
@@ -744,6 +744,39 @@ mod tests {
     /// serialisation that renamed the fields would not fail here or in the
     /// TypeScript: every field would simply arrive undefined, and the queue
     /// would ask an absent path for its file name while rendering.
+    /// Every menu item the menu builds must be a command the handler forwards.
+    ///
+    /// They were two separate lists, and they drifted the first time one was
+    /// added to: `app-about` was built into the menu and left out of the
+    /// filter, so the item rendered, looked exactly like the others, and did
+    /// nothing whatsoever when clicked. Reading the ids out of the source is
+    /// crude, but it is the thing that actually breaks, and a menu item that
+    /// silently does nothing is the worst kind of defect to ship -- it looks
+    /// like the feature is there.
+    #[test]
+    fn menu_ids_are_all_forwarded() {
+        let source = include_str!("main.rs");
+        let mut built = Vec::new();
+        for (index, _) in source.match_indices("MenuItemBuilder::with_id(\"") {
+            let rest = &source[index + "MenuItemBuilder::with_id(\"".len()..];
+            let id = &rest[..rest.find('"').expect("an id literal is closed")];
+            built.push(id);
+        }
+        assert!(built.len() >= 9, "expected the menu to build at least nine items, found {}", built.len());
+        for id in &built {
+            assert!(
+                MENU_COMMANDS.contains(id),
+                "the menu builds an item with id `{id}` that on_menu_event never forwards, so clicking it does nothing"
+            );
+        }
+        for command in MENU_COMMANDS {
+            assert!(
+                built.contains(command),
+                "MENU_COMMANDS names `{command}`, which no menu item builds"
+            );
+        }
+    }
+
     #[test]
     fn a_queued_document_reaches_the_workspace_under_the_names_it_reads() {
         let item = BatchItem {
@@ -858,6 +891,28 @@ mod tests {
     }
 }
 
+/// Every command the menu may send the workspace.
+///
+/// The menu is built from items carrying these ids and `on_menu_event`
+/// forwards from this same list, because keeping the two in separate places
+/// does not work: `app-about` was added to the menu and not to the filter, so
+/// the item existed, looked ordinary, and did nothing at all when clicked. A
+/// menu item that silently does nothing is worse than one that is missing.
+///
+/// `menu_ids_are_all_forwarded` holds the source to this: it reads the ids the
+/// menu actually builds and fails if one of them is absent here.
+const MENU_COMMANDS: &[&str] = &[
+    "app-about",
+    "file-open",
+    "file-add-batch",
+    "file-export",
+    "view-single-job",
+    "view-batch",
+    "view-library",
+    "view-diagnostics",
+    "view-settings",
+];
+
 /// Keep the application commands in the macOS menu bar. The web workspace
 /// listens for the matching `menu-command` events, so menu selection and its
 /// on-canvas counterpart always perform the same action.
@@ -967,7 +1022,7 @@ fn main() {
         })
         .on_menu_event(|app, event| {
             let command = event.id().0.as_str();
-            if matches!(command, "file-open" | "file-add-batch" | "file-export" | "view-single-job" | "view-batch" | "view-library" | "view-diagnostics" | "view-settings") {
+            if MENU_COMMANDS.contains(&command) {
                 let _ = app.emit("menu-command", command);
             }
         })
