@@ -61,15 +61,37 @@ export function linkSummary(links: Array<{ uri: string }> | undefined) {
  * what happened rather than left to conclude nothing was found.
  */
 export function ruledTableSummary(
-  block: { table?: { row_count: number; column_count: number } | null } | undefined,
-  page: { ruled_tables?: Array<{ complete: boolean }> } | undefined,
+  block: { table?: { row_count: number; column_count: number; spans?: Array<Array<{ rowspan: number; colspan: number } | null>> } | null } | undefined,
+  page: { ruled_tables?: Array<{ recoverable: boolean }> } | undefined,
 ) {
-  if (block?.table) return `${block.table.row_count} × ${block.table.column_count} recovered from ruled geometry`;
+  if (block?.table) {
+    const merged = (block.table.spans ?? []).flat().filter((span) => span && (span.rowspan > 1 || span.colspan > 1)).length;
+    const size = `${block.table.row_count} × ${block.table.column_count} recovered from ruled geometry`;
+    return merged ? `${size}, ${merged} merged` : size;
+  }
   const grids = page?.ruled_tables ?? [];
   if (!grids.length) return "None ruled";
-  const recovered = grids.filter((grid) => grid.complete).length;
+  const recovered = grids.filter((grid) => grid.recoverable).length;
   const open = grids.length - recovered;
   if (!open) return `${recovered} recovered on this page`;
-  if (!recovered) return `${open} ruled, none closing into a full grid`;
-  return `${recovered} recovered, ${open} not closed`;
+  if (!recovered) return `${open} ruled, none a shape a table can hold`;
+  return `${recovered} recovered, ${open} not recoverable`;
+}
+
+/**
+ * What the page's own script geometry made of the selected block.
+ *
+ * A block with measured scripts that is not a formula still says so: the
+ * measurement was taken and is part of what Philon knows about the block, and
+ * reporting it only where it changed the output would hide the rest.
+ */
+export function measuredFormulaSummary(
+  block: { type?: string; formula?: { typeset: string } | null; evidence?: { findings?: Record<string, unknown> } } | undefined,
+) {
+  if (!block) return "Not measured";
+  const scripts = Number(block.evidence?.findings?.measured_script_count ?? 0);
+  if (block.formula) return `Recovered with ${scripts} measured script${scripts === 1 ? "" : "s"}`;
+  if (block.evidence?.findings?.set_in_mathematical_face) return "Set in a mathematical face";
+  if (scripts) return `${scripts} measured script${scripts === 1 ? "" : "s"}, not a formula`;
+  return "None measured";
 }
