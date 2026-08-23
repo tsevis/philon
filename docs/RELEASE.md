@@ -5,8 +5,8 @@
    this order: the licence, SBOM, local-only, **model-fetch** and **engine-parity**
    policies — five of them, not three — then the interface suite, `tsc` and the
    production bundle, the engine bundle, the engine suite with the Apple Vision
-   integration tests enabled, the benchmark suite, and `cargo test` and
-   `cargo check`. Running the individual scripts by hand is how a step gets
+   integration tests enabled — which carries the benchmark harness with it, so
+   `test:bench` is not run separately — and `cargo test` and `cargo check`. Running the individual scripts by hand is how a step gets
    skipped; this checklist used to name a subset of them, and so described a
    weaker gate than the one that actually runs.
 3. Confirm the parity gate compared something rather than skipping. It passes —

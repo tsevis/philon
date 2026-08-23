@@ -6,7 +6,7 @@ A build here is produced by `npm run release:verify -- --package`, which runs
 the whole gate before it packages anything: the licence, SBOM, local-only,
 model-fetch and engine-parity policies, the interface suite, `tsc` and the
 production bundle, the engine bundle, the engine suite with the Apple Vision
-integration tests, the benchmark suite, and the Rust tests. A DMG that exists
+integration tests and the benchmark harness it carries, and the Rust tests. A DMG that exists
 here passed all of it.
 
 The parity policy is the one with a caveat worth knowing: it passes, loudly on

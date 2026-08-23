@@ -25,8 +25,11 @@ npm run build
 # This is the same order CI uses; without it a local run is quietly weaker than
 # the one that gates a release.
 npm run engine:package
+# `test:engine` already runs bench/test_run.py -- see the script in package.json.
+# `npm run test:bench` is kept for running the harness on its own, but calling it
+# here as well ran the benchmark suite twice per verify for nothing. The port
+# has always run it once; this is the source project catching up.
 PHILON_VISION_INTEGRATION=1 npm run test:engine
-npm run test:bench
 
 cargo test --manifest-path src-tauri/Cargo.toml
 cargo check --manifest-path src-tauri/Cargo.toml
