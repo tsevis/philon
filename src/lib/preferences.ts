@@ -10,8 +10,8 @@ export const profiles: Array<{ name: Profile; description: string }> = [
 
 export const outputChoices = ["machine", "markdown", "html", "ir", "chunks", "evidence", "table_csv", "assets", "manifest", "page_tree"] as const;
 export type OutputChoice = typeof outputChoices[number];
-export type Preferences = { defaultProfile: Profile; cachePolicy: "use" | "refresh" | "bypass"; outputs: OutputChoice[]; enabledModelIds: string[] };
-export const defaultPreferences: Preferences = { defaultProfile: "Balanced", cachePolicy: "use", outputs: outputChoices.filter((output) => output !== "page_tree"), enabledModelIds: [] };
+export type Preferences = { defaultProfile: Profile; cachePolicy: "use" | "refresh" | "bypass"; outputs: OutputChoice[]; enabledModelIds: string[]; modelSetupSeen: boolean };
+export const defaultPreferences: Preferences = { defaultProfile: "Balanced", cachePolicy: "use", outputs: outputChoices.filter((output) => output !== "page_tree"), enabledModelIds: [], modelSetupSeen: false };
 
 function fallbackPreferences(): Preferences {
   return { ...defaultPreferences, outputs: [...defaultPreferences.outputs], enabledModelIds: [] };
@@ -29,7 +29,11 @@ export function parsePreferences(raw: string | null): Preferences {
     const cachePolicy = stored.cachePolicy === "refresh" || stored.cachePolicy === "bypass" ? stored.cachePolicy : "use";
     const outputs = Array.isArray(stored.outputs) ? outputChoices.filter((item) => stored.outputs?.includes(item)) : [...defaultPreferences.outputs];
     const enabledModelIds = Array.isArray(stored.enabledModelIds) ? stored.enabledModelIds.filter((item): item is string => typeof item === "string") : [];
-    return { defaultProfile, cachePolicy, outputs: outputs.length ? outputs : [...defaultPreferences.outputs], enabledModelIds };
+    // Absent means this build has not shown model setup yet, which is what a
+    // first run is. An upgrade from a build without the field therefore shows
+    // it once, which is the right answer: those packs are new.
+    const modelSetupSeen = stored.modelSetupSeen === true;
+    return { defaultProfile, cachePolicy, outputs: outputs.length ? outputs : [...defaultPreferences.outputs], enabledModelIds, modelSetupSeen };
   } catch { return fallbackPreferences(); }
 }
 

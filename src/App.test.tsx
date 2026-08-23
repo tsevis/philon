@@ -38,6 +38,10 @@ function conversionResult() {
 beforeEach(() => {
   resetBridge();
   localStorage.clear();
+  // These tests exercise the workspace, which a first run does not open onto:
+  // model setup takes the first launch. Mark it seen so each test starts where
+  // an ordinary launch does; the first-run behaviour has its own tests below.
+  localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify({ modelSetupSeen: true }));
   respondWith();
 });
 
@@ -249,6 +253,44 @@ describe("model policy", () => {
     expect(isDisabled(toggle)).toBe(true);
   });
 
+  it("offers a download only for an approved pack that is not already here", async () => {
+    respondWith({ model_status: { packs: [
+      modelPack({ id: "fetchable", readiness: "not-found", available_locally: false, downloadable: true, download_bytes: 545590272, download_verified: true }),
+      modelPack({ id: "already-here", readiness: "ready", available_locally: true, downloadable: true, download_bytes: 100, download_verified: true }),
+      modelPack({ id: "unapproved", approved: false, readiness: "blocked", available_locally: false, downloadable: true, download_bytes: 100 }),
+    ] } });
+    await renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "Models" }));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Download" })).toHaveLength(1));
+    // The size and the fact the bytes are checked are shown before anything is fetched.
+    expect(screen.getByText("Download 520 MB, checked against a SHA-256")).toBeTruthy();
+  });
+
+  it("asks the host to fetch the pack and shows what came back", async () => {
+    const installed = modelPack({ id: "fetchable", readiness: "ready", available_locally: true, managed: true, downloadable: true });
+    respondWith({
+      model_status: { packs: [modelPack({ id: "fetchable", readiness: "not-found", available_locally: false, downloadable: true, download_bytes: 100, download_verified: true })] },
+      fetch_model: { status: "installed", pack_id: "fetchable", models: { packs: [installed] } },
+    });
+    await renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "Models" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Download" }));
+    await waitFor(() => expect(callsTo("fetch_model")).toEqual([{ packId: "fetchable", jobId: expect.any(String) }]));
+    // ...and the pack Philon installed can be removed again.
+    await screen.findByRole("button", { name: "Remove" });
+  });
+
+  it("surfaces a refused fetch rather than reporting success", async () => {
+    respondWith({
+      model_status: { packs: [modelPack({ id: "fetchable", readiness: "not-found", available_locally: false, downloadable: true, download_bytes: 100 })] },
+      fetch_model: { status: "failed", pack_id: "fetchable", message: "did not match its declared SHA-256" },
+    });
+    await renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "Models" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Download" }));
+    expect(await screen.findByText(/did not match its declared SHA-256/)).toBeTruthy();
+  });
+
   it("records an approved local pack the user turns on", async () => {
     respondWith({ model_status: { packs: [modelPack({ id: "local-verify", readiness: "ready" })] } });
     await renderWorkspace();
@@ -258,6 +300,36 @@ describe("model policy", () => {
       const stored = JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY) || "{}");
       expect(stored.enabledModelIds).toEqual(["local-verify"]);
     });
+  });
+});
+
+describe("first run", () => {
+  it("opens model setup once, and not again", async () => {
+    localStorage.clear();
+    respondWith({ model_status: { packs: [modelPack({ id: "a-pack", readiness: "ready", available_locally: true })] } });
+    await renderWorkspace();
+    // Model setup is what a first launch lands on, so a person sees what
+    // Philon can fetch before they convert anything.
+    expect(await screen.findByRole("heading", { name: "Local model access" })).toBeTruthy();
+    await waitFor(() => {
+      const stored = JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY) || "{}");
+      expect(stored.modelSetupSeen).toBe(true);
+    });
+    cleanup();
+    resetBridge();
+    respondWith({ model_status: { packs: [] } });
+    await renderWorkspace();
+    expect(screen.queryByRole("heading", { name: "Local model access" })).toBeNull();
+  });
+
+  it("says what it found and what it could fetch", async () => {
+    localStorage.clear();
+    respondWith({ model_status: { packs: [
+      modelPack({ id: "here", readiness: "ready", available_locally: true }),
+      modelPack({ id: "missing", readiness: "not-found", available_locally: false, downloadable: true, download_bytes: 100 }),
+    ] } });
+    await renderWorkspace();
+    expect(await screen.findByText("1 of 2 approved packs are already on this machine; 1 can be downloaded.")).toBeTruthy();
   });
 });
 

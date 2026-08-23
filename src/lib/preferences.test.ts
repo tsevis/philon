@@ -11,8 +11,21 @@ describe("parsePreferences", () => {
   });
 
   it("keeps a fully valid stored preference set", () => {
-    const stored = { defaultProfile: "Verified", cachePolicy: "bypass", outputs: ["ir", "evidence"], enabledModelIds: ["local-repair"] };
+    const stored = { defaultProfile: "Verified", cachePolicy: "bypass", outputs: ["ir", "evidence"], enabledModelIds: ["local-repair"], modelSetupSeen: true };
     expect(parsePreferences(JSON.stringify(stored))).toEqual(stored);
+  });
+
+  it("treats an absent model-setup flag as a first run", () => {
+    // An upgrade from a build without the field shows setup once, which is the
+    // right answer: the packs it offers are new to that installation.
+    expect(parsePreferences(JSON.stringify({ defaultProfile: "Fast" })).modelSetupSeen).toBe(false);
+    expect(parsePreferences(null).modelSetupSeen).toBe(false);
+  });
+
+  it("only accepts the model-setup flag as a real boolean", () => {
+    expect(parsePreferences(JSON.stringify({ modelSetupSeen: "yes" })).modelSetupSeen).toBe(false);
+    expect(parsePreferences(JSON.stringify({ modelSetupSeen: 1 })).modelSetupSeen).toBe(false);
+    expect(parsePreferences(JSON.stringify({ modelSetupSeen: true })).modelSetupSeen).toBe(true);
   });
 
   it("rejects a profile this build does not offer", () => {

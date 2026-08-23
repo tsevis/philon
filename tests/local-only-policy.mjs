@@ -8,6 +8,18 @@ import { readFile, readdir } from "node:fs/promises";
 // stopped matching would otherwise report a pass forever. The front end is
 // scanned too -- it can reach the network with a bare fetch(), and nothing
 // here used to look at it.
+//
+// ONE file is exempt: engine/model_fetch.py, which fetches a model pack a
+// person explicitly asked for. The exemption is a named file rather than a
+// relaxed pattern, so the guarantee the rest of the project makes is unchanged
+// -- a conversion still cannot reach the network, because none of the files
+// that run one are allowed to. What the exempt file may itself do is not left
+// open either: tests/model-fetch-policy.mjs holds it to HTTPS, an explicit
+// host allow-list, and a verified digest before anything is installed.
+//
+// The exemption is also checked to be load-bearing. A path listed here that
+// has no network call in it would silently widen the gate the day someone adds
+// one, so the file is required to actually need its exemption.
 const roots = [
   new URL("../engine/philon_engine.py", import.meta.url),
   new URL("../engine/requirements.txt", import.meta.url),
@@ -74,13 +86,42 @@ async function frontEndSources(directory) {
   return found;
 }
 
+/** The one file allowed to reach the network, and the reason it is allowed. */
+const exempt = new Map([
+  ["engine/model_fetch.py", "explicit, allow-listed, digest-verified model pack fetch"],
+]);
+
+for (const [relative] of exempt) {
+  const text = await readFile(new URL(`../${relative}`, import.meta.url), "utf8");
+  if (!offending(text).length) {
+    throw new Error(
+      `Local-only policy exempts ${relative}, but nothing in it needs the exemption. ` +
+      `Remove the exemption rather than leaving the gate wider than the code.`,
+    );
+  }
+}
+
 const sources = [...roots, ...(await frontEndSources(new URL("../src/", import.meta.url)))];
 for (const source of sources) {
+  if ([...exempt.keys()].some((relative) => source.pathname.endsWith(relative))) continue;
   const hits = offending(await readFile(source, "utf8"));
   if (hits.length) throw new Error(`Local-only policy rejected ${source.pathname}: ${hits}`);
 }
 
+// The conversion engine must not import the fetcher at module scope. If it
+// did, every conversion would load a network client, and the separation the
+// exemption relies on would exist only on paper.
+const engine = await readFile(new URL("../engine/philon_engine.py", import.meta.url), "utf8");
+for (const line of engine.split("\n")) {
+  // No leading whitespace: an indented import is inside a function, which is
+  // exactly where the fetcher is required to be imported.
+  if (/^(?:from|import)\s+model_fetch\b/.test(line)) {
+    throw new Error("engine/philon_engine.py imports model_fetch at module scope; it must import it inside the fetch action.");
+  }
+}
+
 console.log(
   `Local-only policy passed for ${sources.length} runtime sources ` +
-  `(${mustReject.length} rejection samples and ${mustAccept.length} acceptance samples verified first).`,
+  `(${mustReject.length} rejection samples and ${mustAccept.length} acceptance samples verified first, ` +
+  `${exempt.size} named exemption checked to be load-bearing and not reachable from a conversion).`,
 );
