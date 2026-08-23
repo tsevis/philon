@@ -3,10 +3,16 @@
 Built DMGs, kept beside the source they were built from.
 
 A build here is produced by `npm run release:verify -- --package`, which runs
-the whole gate before it packages anything: licence and SBOM policy, the
-local-only check, the interface suite, `tsc` and the production bundle, the
-engine bundle, the engine suite with the Apple Vision integration tests, the
-benchmark suite, and the Rust tests. A DMG that exists here passed all of it.
+the whole gate before it packages anything: the licence, SBOM, local-only,
+model-fetch and engine-parity policies, the interface suite, `tsc` and the
+production bundle, the engine bundle, the engine suite with the Apple Vision
+integration tests, the benchmark suite, and the Rust tests. A DMG that exists
+here passed all of it.
+
+The parity policy is the one with a caveat worth knowing: it passes, loudly on
+stderr, when the port's checkout is not on the machine. A build made without
+`philon_p` beside this repository is a build whose engine was never compared
+against the other copy of itself.
 
 ## Verifying a download
 
