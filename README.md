@@ -262,6 +262,20 @@ hunk the port documents. With the peer checkout absent it says so on stderr and
 passes, since one repository alone is a legitimate way to work; CI sets
 `PHILON_PARITY_REQUIRE=1` so that going unchecked is an error there.
 
+The same gate is available as a pre-commit hook, which is the difference between
+a check that runs when someone remembers and one that runs every time:
+
+```bash
+zsh scripts/install-git-hooks.sh              # opt in
+zsh scripts/install-git-hooks.sh --uninstall  # opt back out
+```
+
+It sets `core.hooksPath` to the tracked `scripts/git-hooks`, refuses a commit
+that would leave the two copies out of parity, and is silent otherwise. It reads
+the working tree rather than the index — the gate compares against the other
+repository's checkout, which has no index, so there is nothing else it could
+sensibly read. `git commit --no-verify` skips it.
+
 Tests live beside what they cover: `engine/test_engine.py` for conversion and
 evidence, `engine/test_socket.py` for the authenticated Unix-socket bridge,
 `engine/test_fuzz.py` for the malformed-input corpus, `bench/test_run.py` for
