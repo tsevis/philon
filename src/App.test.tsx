@@ -333,6 +333,41 @@ describe("first run", () => {
   });
 });
 
+describe("about", () => {
+  it("the menu item and the toolbar button open the same screen", async () => {
+    // They did not. The toolbar button opened Philon's own about screen; the
+    // menu used Tauri's predefined About item, which opens the stock macOS
+    // panel -- an icon, a name and a version number. `install_native_menu`
+    // says in its own doc comment that menu selection and its on-canvas
+    // counterpart always perform the same action, and this was the one item
+    // where that was untrue.
+    // The splash opens itself on a first launch, so mark it seen: what is
+    // under test is asking for it again once it has been dismissed.
+    localStorage.setItem("philon.splash.seen.v1", VERSION);
+    respondWith({ model_status: { packs: [] } });
+    await renderWorkspace();
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await act(async () => { emit("menu-command", "app-about"); });
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain(VERSION);
+    // The stock panel carries a version and nothing else. This is the screen
+    // that says what the program is and what it is built from.
+    expect(dialog.textContent).toMatch(/Sources, licences and credits/i);
+  });
+
+  it("the toolbar button opens it too", async () => {
+    localStorage.setItem("philon.splash.seen.v1", VERSION);
+    respondWith({ model_status: { packs: [] } });
+    await renderWorkspace();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByTitle("About Philon"));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain(VERSION);
+  });
+});
+
 describe("library", () => {
   const job = { id: "job-1", created_at: "2026-01-01T00:00:00Z", profile: "Balanced" as const, status: "completed", documents: 1, warnings: 0 };
 

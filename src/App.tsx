@@ -481,6 +481,9 @@ function App() {
         case "file-export":
           void exportActiveDocument();
           break;
+        case "app-about":
+          setSplashOpen(true);
+          break;
       }
     }).then((stop) => { unlisten = stop; }).catch(() => { /* Browser preview has no native menu. */ });
     return () => unlisten?.();

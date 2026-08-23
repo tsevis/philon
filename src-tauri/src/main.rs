@@ -886,9 +886,19 @@ fn install_native_menu(app: &AppHandle) -> tauri::Result<()> {
     let preferences = MenuItemBuilder::with_id("view-settings", "Settings…")
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
+    // Not `.about(None)`. That predefined item opens the stock macOS panel --
+    // an icon, the name and a version number -- while the same request made
+    // from the toolbar opens Philon's own about screen, which carries what the
+    // program is, what it will not do, and the sources and licences behind it.
+    // Two ways to ask one question, arriving at two different answers, one of
+    // which answers almost nothing. This routes the menu to the same place the
+    // button goes, which is what the comment above this function already
+    // claimed the whole menu did.
+    let about = MenuItemBuilder::with_id("app-about", "About Philon").build(app)?;
 
     let app_menu = SubmenuBuilder::new(app, "Philon")
-        .about(None)
+        .item(&about)
+        .separator()
         .item(&preferences)
         .separator()
         .services()
