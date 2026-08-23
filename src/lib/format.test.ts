@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { basename, bytesLabel, confidenceLabel, isAnchorableLink, linkSummary, ruledTableSummary, timestampLabel } from "./format";
+import { basename, bytesLabel, confidenceLabel, isAnchorableLink, linkSummary, measuredFormulaSummary, ruledTableSummary, timestampLabel } from "./format";
 
 describe("basename", () => {
   it("names the document rather than its containing path", () => {
@@ -95,20 +95,48 @@ describe("ruledTableSummary", () => {
   });
 
   it("names the grid the selected block was recovered from", () => {
-    expect(ruledTableSummary({ table: { row_count: 3, column_count: 4 } }, { ruled_tables: [{ complete: true }] }))
+    expect(ruledTableSummary({ table: { row_count: 3, column_count: 4 } }, { ruled_tables: [{ recoverable: true }] }))
       .toBe("3 × 4 recovered from ruled geometry");
   });
 
   it("counts what the page recovered when the block is not a table", () => {
-    expect(ruledTableSummary(undefined, { ruled_tables: [{ complete: true }, { complete: true }] }))
+    expect(ruledTableSummary(undefined, { ruled_tables: [{ recoverable: true }, { recoverable: true }] }))
       .toBe("2 recovered on this page");
   });
 
-  it("reports a lattice that did not close rather than hiding it", () => {
-    expect(ruledTableSummary(undefined, { ruled_tables: [{ complete: false }] }))
-      .toBe("1 ruled, none closing into a full grid");
-    expect(ruledTableSummary(undefined, { ruled_tables: [{ complete: true }, { complete: false }] }))
-      .toBe("1 recovered, 1 not closed");
+  it("reports a lattice no table can hold rather than hiding it", () => {
+    expect(ruledTableSummary(undefined, { ruled_tables: [{ recoverable: false }] }))
+      .toBe("1 ruled, none a shape a table can hold");
+    expect(ruledTableSummary(undefined, { ruled_tables: [{ recoverable: true }, { recoverable: false }] }))
+      .toBe("1 recovered, 1 not recoverable");
+  });
+
+  it("names the merged cells the page's missing rules proved", () => {
+    const spans = [[{ rowspan: 1, colspan: 2 }, null], [{ rowspan: 1, colspan: 1 }, { rowspan: 1, colspan: 1 }]];
+    expect(ruledTableSummary({ table: { row_count: 2, column_count: 2, spans } }, undefined))
+      .toBe("2 × 2 recovered from ruled geometry, 1 merged");
+  });
+});
+
+describe("measuredFormulaSummary", () => {
+  it("says so when nothing was measured", () => {
+    expect(measuredFormulaSummary(undefined)).toBe("Not measured");
+    expect(measuredFormulaSummary({ evidence: { findings: {} } })).toBe("None measured");
+  });
+
+  it("names a formula recovered from the page's own script geometry", () => {
+    expect(measuredFormulaSummary({ formula: { typeset: "E = mc^{2}" }, evidence: { findings: { measured_script_count: 1 } } }))
+      .toBe("Recovered with 1 measured script");
+  });
+
+  it("reports scripts it measured on a block that is not a formula", () => {
+    expect(measuredFormulaSummary({ evidence: { findings: { measured_script_count: 2 } } }))
+      .toBe("2 measured scripts, not a formula");
+  });
+
+  it("reports a mathematical face on its own", () => {
+    expect(measuredFormulaSummary({ evidence: { findings: { set_in_mathematical_face: true } } }))
+      .toBe("Set in a mathematical face");
   });
 });
 

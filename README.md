@@ -134,7 +134,9 @@ loading a model or making a network request.
 
 Philon does not reuse Marker code or models.
 
-The current engine also marks repeated page artifacts, retains a per-page routing decision, recovers ruled tables from the rules a page draws, exports safely delimited native tables, flags formula-like native blocks, and records local human review decisions as reversible provenance. It does not yet perform formula recognition or automatic VLM repair.
+The current engine also marks repeated page artifacts, retains a per-page routing decision, recovers ruled tables from the rules a page draws — including the merged cells its *missing* rules prove — recognises formulas from the script geometry a page measurably set, exports safely delimited native tables, and records local human review decisions as reversible provenance.
+
+Automatic local VLM repair exists and is **off unless a run asks for it** (`local_repair`). When asked, it acts only on regions Philon's own health gate already refused to vouch for, uses only an approved local pack, retains the extracted text beside every replacement so it can be restored, and refuses to apply a candidate that fails the deterministic format checks. Formula *recognition* is geometric: Philon reads the superscripts and subscripts a page set, and does not attempt to parse an equation's semantics.
 
 `Fast` is native-text only and never invokes OCR. `Balanced` is the default,
 using Apple Vision only for image or textless-PDF input. `Verified` adds
@@ -251,7 +253,7 @@ For each input, Philon also creates a dedicated export directory containing:
 - `assets/page-previews/*.png` local review rasters used for source/evidence overlays
 - `images/*` native PDF image streams, deduplicated by hash with a page/object provenance manifest
 - optional `*.page-tree.json` interchange output with embedded image data
-- `tables/*.csv` for tables recovered from a page's own rules, and for native tables whose delimiter and row shape were provable
+- `tables/*.csv` for tables recovered from a page's own rules — joined across pages where the rules continue — and for native tables whose delimiter and row shape were provable
 
 The machine package, clean Markdown, and presentation HTML are selected by
 default. The page-tree JSON remains available as an explicit interchange option.
@@ -270,12 +272,14 @@ Use the private-corpus harness in [`bench/README.md`](bench/README.md) to record
 
 A version number here describes the application. The engine contract and the IR
 version are deliberately separate from it and from each other. The engine
-contract remains at 0.2.0. The IR is at **0.4.0**: it gained the tables
-recovered from the rules a page draws, as `ruled_tables` on each page record and
-as a `table` of proven cells on each block one encloses. 0.3.0 had added the
-page's own `/Rotate`, the source-declared links measured onto each block, and
-the page selection a conversion covers. A document converted by a build carrying
-an IR version has that evidence shape and says so in `philon_ir_version`.
+contract remains at 0.2.0. The IR is at **0.5.0**: it gained the merged cells a
+table's missing rules prove, as `spans` and `column_lines` on that record; the
+formula a page's own script geometry proves, as `formula` on the block it
+belongs to; and the provenance an automatic local repair leaves behind. 0.4.0
+had added the tables recovered from the rules a page draws, and 0.3.0 the page's
+own `/Rotate`, the source-declared links measured onto each block, and the page
+selection a conversion covers. A document converted by a build carrying an IR
+version has that evidence shape and says so in `philon_ir_version`.
 
 A cache entry is named after the IR version it holds, so an entry written
 against an older shape is never reached rather than being read and rejected. An
@@ -327,6 +331,47 @@ Proving that equivalence surfaced a separate defect, which is recorded and not
 fixed: one CCITT fax image in a reference paper fails to decode and produces
 **different bytes on every extraction**, so its `bytes_sha256` — its provenance
 — changes run to run. See `documents/CACHE_BOUNDARY_AND_ASSET_COST.md`.
+
+**Unreleased** — Merged cells, continued tables, formulas, and an automatic
+repair that must be asked for.
+
+**A rule that stops is evidence too.** A complete lattice encloses one cell per
+opening; where a rule stops, the openings either side of it were never
+separated, and the page is saying they are one cell. That absence is now read
+as a span. It converts the case Philon previously refused: on the reference
+paper, a 14x6 arrangement that had only produced a `RULED_TABLE_INCOMPLETE`
+warning is recovered as a table with 27 merged cells. What is still refused is a
+merged region that is not a rectangle — an L of three openings around a fourth —
+which no table can express and which is reported instead of being forced.
+
+**A table continued onto the next page repeats its rules, not its headings.**
+The existing test looked for a repeated header row, which a real continuation
+does not have: the second page opens straight into data. Continuations are now
+also recognised by matching column geometry, and which evidence applied is
+recorded — because the export depends on it. A repeated header must not be
+written twice; a geometric continuation must not lose its first row.
+
+**Formulas are recognised from how the page set them.** PDFium reports each
+character's true baseline and the size it is set at, and a script is smaller
+than its body *and* off its baseline. Both are required, and both come from the
+page rather than from glyph ink — measured from ink, the `=` in every line of
+prose reads as a superscript, which is exactly what the first attempt here did.
+`E = mc2` carries one formula marker as characters and two once the raised `2`
+it was actually set with is written down, so the geometry is what promotes it.
+A face that sets nothing but mathematics is accepted on its own. This recovers
+*typesetting*, not semantics: Philon writes `x^{2}`, and does not claim to know
+what the equation means.
+
+**Automatic repair is off unless a run asks for it.** This is the one place
+Philon replaces text it extracted, so the guarantees around it are the feature:
+it acts only where the health gate already refused to vouch for the text, uses
+only an approved and enabled local pack, retains the extracted text as a
+candidate *before* replacing it so `restore_candidate` puts it back, refuses to
+apply a candidate that fails the deterministic format checks, and records the
+model and crop fingerprint behind every substitution. It is bounded to
+`AUTOMATIC_REPAIR_MAX_BLOCKS` regions per document and reports what it left. The cache
+still holds the document as the source states it — a repaired reading belongs to
+the run that asked for one and is never served to a run that did not.
 
 **Unreleased** — Tables recovered from the rules a page draws. Philon exported
 only tables whose text carried a delimiter, which is the smaller half of the
