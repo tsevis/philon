@@ -429,7 +429,16 @@ opening; where a rule stops, the openings either side of it were never
 separated, and the page is saying they are one cell. That absence is now read
 as a span. It converts the case Philon previously refused: on the reference
 paper, a 14x6 arrangement that had only produced a `RULED_TABLE_INCOMPLETE`
-warning is recovered as a table with 27 merged cells. What is still refused is a
+warning is recovered as a table with 27 merged cells. HTML says `colspan` and
+`rowspan` for those. Markdown can say neither, so it writes a merged cell into
+one column and the opening it swallowed as nothing — and where a column is
+covered in *every* row, so that it is blank from top to bottom and says nothing
+at all, that column is dropped rather than printed. Those 14x6 grids are three
+logical columns and Markdown renders them as three. A column covered in only
+some rows is kept, blanks and all: dropping it would misalign the rows that do
+use it, and filling it in would repeat a value the page wrote once. The IR, the
+CSV and the page-tree export stay square, because a consumer reading them by
+index is entitled to the grid the recovery found. What is still refused is a
 merged region that is not a rectangle — an L of three openings around a fourth —
 which no table can express and which is reported instead of being forced.
 
