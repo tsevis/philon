@@ -10,7 +10,7 @@ benchmark suite, and the Rust tests. A DMG that exists here passed all of it.
 
 ## Verifying a download
 
-    shasum -a 256 -c Philon_0.2.5_aarch64.dmg.sha256
+    shasum -a 256 -c Philon_0.2.6_aarch64.dmg.sha256
 
 The checksum is recorded at build time from the same file `hdiutil verify`
 accepted.

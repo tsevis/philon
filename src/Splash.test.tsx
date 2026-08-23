@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { Splash, rememberSplashSeen, splashWanted } from "./Splash";
+import { Splash } from "./Splash";
 import { CREDIT, SUBTITLE, VERSION } from "./lib/about";
 
 afterEach(cleanup);
@@ -53,30 +53,5 @@ describe("Splash", () => {
     render(<Splash onDismiss={onDismiss} />);
     fireEvent.mouseDown(screen.getByRole("dialog"));
     expect(onDismiss).not.toHaveBeenCalled();
-  });
-});
-
-describe("showing it once", () => {
-  it("shows on a first launch, because absent means yes", () => {
-    expect(splashWanted({ getItem: () => null })).toBe(true);
-  });
-
-  it("stays away once this version has been seen", () => {
-    expect(splashWanted({ getItem: () => VERSION })).toBe(false);
-  });
-
-  it("returns after an upgrade, when the text may have changed", () => {
-    expect(splashWanted({ getItem: () => "0.0.1" })).toBe(true);
-  });
-
-  it("records the version rather than a bare flag", () => {
-    const setItem = vi.fn();
-    rememberSplashSeen({ setItem });
-    expect(setItem).toHaveBeenCalledWith("philon.splash.seen.v1", VERSION);
-  });
-
-  it("still shows rather than crashing when storage is unavailable", () => {
-    expect(splashWanted({ getItem: () => { throw new Error("private mode"); } })).toBe(true);
-    expect(() => rememberSplashSeen({ setItem: () => { throw new Error("private mode"); } })).not.toThrow();
   });
 });

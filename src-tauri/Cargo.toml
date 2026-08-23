@@ -1,6 +1,6 @@
 [package]
 name = "philon"
-version = "0.2.5"
+version = "0.2.6"
 description = "Evidence-first document conversion for macOS"
 authors = ["Philon contributors"]
 edition = "2021"

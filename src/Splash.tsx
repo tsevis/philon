@@ -68,14 +68,3 @@ export function Splash({ onDismiss }: SplashProps) {
     </div>
   );
 }
-
-const STORAGE_KEY = "philon.splash.seen.v1";
-
-/** Absent means yes: the first launch is when this is worth reading. */
-export function splashWanted(storage: Pick<Storage, "getItem"> = localStorage): boolean {
-  try { return storage.getItem(STORAGE_KEY) !== VERSION; } catch { return true; }
-}
-
-export function rememberSplashSeen(storage: Pick<Storage, "setItem"> = localStorage): void {
-  try { storage.setItem(STORAGE_KEY, VERSION); } catch { /* private mode; showing it again is harmless. */ }
-}
