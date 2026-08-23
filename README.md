@@ -114,12 +114,44 @@ local-only:check` is a source-level gate that fails the build if an HTTP client
 reaches the runtime sources, so this stays true rather than merely being
 intended.
 
-Your documents are yours. Philon never sends a document, a fragment, or a
-filename anywhere.
+**Your documents are yours. Philon never sends a document, a fragment, or a
+filename anywhere, and conversion opens no connection at all.** That is the
+guarantee, and it is unchanged.
+
+There is exactly **one** thing Philon will fetch, and only when you ask for it
+by name: a model pack you choose in the Models pane. It is worth stating
+precisely what that does and does not mean.
+
+- The fetch lives in `engine/model_fetch.py`, the single file exempt from the
+  local-only gate. The exemption is a **named file**, not a relaxed pattern, so
+  every source that runs a conversion is still held to the original rule.
+- The gate checks the exemption is load-bearing — a file listed there with no
+  network call in it fails the build rather than quietly widening the rule —
+  and separately checks that the conversion engine never imports the fetcher at
+  module scope. A conversion cannot reach the network even by accident.
+- `npm run model-fetch:check` holds that one file to HTTPS, an **exact-match**
+  host allow-list (a suffix test would accept `huggingface.co.example.invalid`),
+  a re-check of every redirect hop, and a SHA-256 comparison that must pass
+  *before* anything is moved into place. It also refuses a pack the model
+  policy has not approved, so a download is not a way around the licence gate.
+- It uses only the standard library, so the dependency count and the SBOM are
+  unchanged.
+- Every digest in the manifest was computed from a real copy of the file, so a
+  download is checked against known-good bytes rather than against whatever a
+  host serves.
+
+A model you already have is never downloaded: Philon discovers copies across
+the usual local stores first, and only offers to fetch what is genuinely
+absent. Nothing about your documents is ever sent, including to fetch a model —
+the request carries a pack name and nothing else.
 
 ## Deliberate V1 boundaries
 
 The architecture includes adapters for tables, formulas, layout models, and manual local VLM repair. Those model packs are intentionally not bundled yet: each needs a documented accuracy bakeoff and licence approval before it becomes a Philon runtime dependency. Apple Vision is an approved macOS-system OCR runtime; its output retains line confidence and provenance.
+
+On first launch Philon opens the Models pane, reports which approved packs are
+already on the machine, and offers to download the ones that are not. It records
+that it did so, and an ordinary launch goes straight to the workspace.
 
 The Models pane can also discover local olmOCR, Qwen, and BGE-M3 copies from
 the system model inventory. On this private development Mac, Qwen 3.8 27B with

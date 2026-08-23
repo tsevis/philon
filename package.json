@@ -13,6 +13,7 @@
     "release:verify": "zsh scripts/verify-release.sh",
     "local-only:check": "node tests/local-only-policy.mjs",
     "sbom:check": "node tests/sbom-policy.mjs",
+    "model-fetch:check": "node tests/model-fetch-policy.mjs",
     "test": "npm run test:ui && npm run test:engine && npm run build",
     "test:engine": ".venv/bin/python -m unittest engine/test_engine.py engine/test_socket.py engine/test_fuzz.py bench/test_run.py -v",
     "test:ui": "vitest run",

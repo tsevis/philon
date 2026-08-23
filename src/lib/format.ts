@@ -95,3 +95,31 @@ export function measuredFormulaSummary(
   if (scripts) return `${scripts} measured script${scripts === 1 ? "" : "s"}, not a formula`;
   return "None measured";
 }
+
+/**
+ * What a model pack would cost to fetch, from the manifest alone.
+ *
+ * Never asked of a host: Philon reports what it has been told a pack weighs,
+ * so a person can see the cost of a download before any connection is opened.
+ */
+export function packDownloadLabel(pack: { downloadable?: boolean; download_bytes?: number | null; download_verified?: boolean }) {
+  if (!pack.downloadable) return null;
+  const bytes = pack.download_bytes ?? 0;
+  const size = bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.max(1, Math.round(bytes / 1024 ** 2))} MB`;
+  return pack.download_verified ? `${size}, checked against a SHA-256` : `${size}, no digest declared`;
+}
+
+/**
+ * One line describing what a first run found, and what it would have to fetch.
+ *
+ * Counts packs a person can act on, so the built-in runtimes and the packs
+ * policy blocks are left out of both halves rather than padding the good news.
+ */
+export function modelSetupSummary(packs: Array<{ required?: boolean; approved?: boolean; available_locally?: boolean; downloadable?: boolean }>) {
+  const optional = packs.filter((pack) => !pack.required && pack.approved);
+  if (!optional.length) return "No optional model packs are approved for this build.";
+  const present = optional.filter((pack) => pack.available_locally).length;
+  const fetchable = optional.filter((pack) => !pack.available_locally && pack.downloadable).length;
+  if (!fetchable) return `${present} of ${optional.length} approved packs are already on this machine.`;
+  return `${present} of ${optional.length} approved packs are already on this machine; ${fetchable} can be downloaded.`;
+}

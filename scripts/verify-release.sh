@@ -10,6 +10,7 @@ cd "${ROOT_DIR}"
 npm run license:check
 npm run sbom:check
 npm run local-only:check
+npm run model-fetch:check
 npm run test:ui
 npm run build
 

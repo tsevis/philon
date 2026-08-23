@@ -514,3 +514,9 @@ h1 { margin: 3px 0 0; color: #1d1d1f; font-size: 24px; font-weight: 700; letter-
   .render-failure p { color: #aeaeb2; }
   .render-failure pre { color: #ebebf5; background: #1c1c1e; }
 }
+
+/* Model setup: the download and enable controls sit together on one card, and
+   the licence is shown on it because some packs carry real restrictions. */
+.model-setup-summary { margin-top: .35rem; font-weight: 600; }
+.model-pack .model-actions { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; margin-left: auto; }
+.model-pack .model-licence { opacity: .82; }

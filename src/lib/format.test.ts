@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { basename, bytesLabel, confidenceLabel, isAnchorableLink, linkSummary, measuredFormulaSummary, ruledTableSummary, timestampLabel } from "./format";
+import { basename, bytesLabel, confidenceLabel, isAnchorableLink, linkSummary, measuredFormulaSummary, modelSetupSummary, packDownloadLabel, ruledTableSummary, timestampLabel } from "./format";
 
 describe("basename", () => {
   it("names the document rather than its containing path", () => {
@@ -153,5 +153,48 @@ describe("linkSummary", () => {
   it("names a withheld target rather than dropping it silently", () => {
     expect(linkSummary([{ uri: "javascript:x" }])).toBe("1 declared, none an anchorable scheme");
     expect(linkSummary([{ uri: "https://a.test" }, { uri: "file:///x" }])).toBe("1 anchored, 1 withheld as unanchorable");
+  });
+});
+
+describe("packDownloadLabel", () => {
+  it("says nothing for a pack with nothing to fetch", () => {
+    expect(packDownloadLabel({})).toBeNull();
+    expect(packDownloadLabel({ downloadable: false, download_bytes: 100 })).toBeNull();
+  });
+
+  it("names the size and that the bytes are checked", () => {
+    expect(packDownloadLabel({ downloadable: true, download_bytes: 545590272, download_verified: true }))
+      .toBe("520 MB, checked against a SHA-256");
+    expect(packDownloadLabel({ downloadable: true, download_bytes: 6_940_000_000, download_verified: true }))
+      .toBe("6.5 GB, checked against a SHA-256");
+  });
+
+  it("says plainly when no digest was declared", () => {
+    expect(packDownloadLabel({ downloadable: true, download_bytes: 1048576, download_verified: false }))
+      .toBe("1 MB, no digest declared");
+  });
+});
+
+describe("modelSetupSummary", () => {
+  it("ignores built-in runtimes and packs policy blocks", () => {
+    expect(modelSetupSummary([
+      { required: true, approved: true, available_locally: true },
+      { required: false, approved: false, available_locally: false, downloadable: true },
+    ])).toBe("No optional model packs are approved for this build.");
+  });
+
+  it("counts what is present and what could be fetched", () => {
+    expect(modelSetupSummary([
+      { required: false, approved: true, available_locally: true },
+      { required: false, approved: true, available_locally: false, downloadable: true },
+      { required: false, approved: true, available_locally: false, downloadable: true },
+    ])).toBe("1 of 3 approved packs are already on this machine; 2 can be downloaded.");
+  });
+
+  it("does not offer a download when there is nothing to fetch", () => {
+    expect(modelSetupSummary([
+      { required: false, approved: true, available_locally: true },
+      { required: false, approved: true, available_locally: false, downloadable: false },
+    ])).toBe("1 of 2 approved packs are already on this machine.");
   });
 });

@@ -124,4 +124,12 @@ export type ModelPack = {
   integrity: string | null;
   readiness?: "ready" | "available" | "probe-required" | "incomplete" | "not-found" | "unavailable" | "blocked";
   diagnostics?: string[];
+  /** Whether the manifest declares files Philon can fetch for this pack. */
+  downloadable?: boolean;
+  /** What that fetch would transfer, declared in the manifest rather than asked of a host. */
+  download_bytes?: number | null;
+  /** Whether every declared file carries a SHA-256 that will be checked before install. */
+  download_verified?: boolean;
+  /** Whether the copy in use is one Philon fetched, rather than one already on the machine. */
+  managed?: boolean;
 };

@@ -700,6 +700,31 @@ async fn model_status(app: AppHandle, state: State<'_, EngineState>) -> Result<V
     join_blocking(tauri::async_runtime::spawn_blocking(move || model_status_inner(app, &worker_state))).await
 }
 
+/// Fetch one approved model pack. The host process opens no connection itself;
+/// it forwards the request to the engine, which is the only component with a
+/// network-capable module, and relays the progress the engine reports.
+fn fetch_model_inner(app: AppHandle, state: &EngineState, pack_id: String, job_id: String) -> Result<Value, String> {
+    engine_call_with_progress(&app, &state, json!({"action": "fetch_model", "pack_id": pack_id, "job_id": job_id}), |payload| {
+        let _ = app.emit("philon://progress", payload);
+    })
+}
+
+#[tauri::command]
+async fn fetch_model(app: AppHandle, state: State<'_, EngineState>, pack_id: String, job_id: String) -> Result<Value, String> {
+    let worker_state = state.inner().clone();
+    join_blocking(tauri::async_runtime::spawn_blocking(move || fetch_model_inner(app, &worker_state, pack_id, job_id))).await
+}
+
+fn remove_model_inner(app: AppHandle, state: &EngineState, pack_id: String) -> Result<Value, String> {
+    engine_call(&app, &state, json!({"action": "remove_model", "pack_id": pack_id}))
+}
+
+#[tauri::command]
+async fn remove_model(app: AppHandle, state: State<'_, EngineState>, pack_id: String) -> Result<Value, String> {
+    let worker_state = state.inner().clone();
+    join_blocking(tauri::async_runtime::spawn_blocking(move || remove_model_inner(app, &worker_state, pack_id))).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::{batch_status_after_run, publish_completed_batch_document, session_token, stop_engine_process, BatchItem, JobHistory};
@@ -936,7 +961,7 @@ fn main() {
                 let _ = app.emit("menu-command", command);
             }
         })
-        .invoke_handler(tauri::generate_handler![run_conversion, preflight_conversion, enqueue_batch, append_batch_items, list_batch_items, latest_batch, set_batch_item_state, run_batch, list_jobs, clear_library, get_job, engine_health, apply_review, request_repair, export_conversion, model_status])
+        .invoke_handler(tauri::generate_handler![run_conversion, preflight_conversion, enqueue_batch, append_batch_items, list_batch_items, latest_batch, set_batch_item_state, run_batch, list_jobs, clear_library, get_job, engine_health, apply_review, request_repair, export_conversion, model_status, fetch_model, remove_model])
         .build(tauri::generate_context!())
         .expect("error while building Philon")
         // Quitting is the moment the engine would otherwise be orphaned, so the
