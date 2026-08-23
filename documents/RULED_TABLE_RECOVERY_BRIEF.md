@@ -111,5 +111,16 @@ agreeing views. Zero `qt.qpa` font warnings — a regression there means a
 - Philon is MIT and reuses no Marker code; keep it that way. The compatibility
   export is named `page_tree` (formerly `marker_json`) — do not reintroduce the
   old name.
-- `~/AI/marker` holds local commits of fixes written *for* Marker (GPL, upstream
-  is `datalab-to/marker`, no push access). Unrelated to Philon; leave it alone.
+
+  **The reason changed on 2026-08-23, the rule did not.** This constraint used
+  to rest on Marker being GPL-3.0 and therefore incompatible. It is not: Marker
+  relicensed GPL → OpenRAIL → Apache-2.0 (`65f73c9`, 2026-07-17) and shipped
+  2.0.0 on 2026-07-20, and Apache-2.0 is compatible with an MIT project subject
+  to attribution and NOTICE. Reuse is now *permitted*. It is still declined, on
+  the grounds it should have been held on all along: Philon is a clean-room
+  implementation running its whole conversion path on four runtime dependencies,
+  against Marker's ML stack, and that is a product position rather than a legal
+  constraint. State it that way.
+- `~/AI/marker` holds local commits of fixes written *for* Marker (Apache-2.0
+  since 2.0; upstream is `datalab-to/marker`, no push access). Those commits
+  were rebased onto v2.0.0 on 2026-08-22. Unrelated to Philon; leave it alone.

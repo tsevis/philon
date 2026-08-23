@@ -11,6 +11,12 @@ npm run license:check
 npm run sbom:check
 npm run local-only:check
 npm run model-fetch:check
+# The two repositories share one engine, and each one's suite only ever tests
+# its own copy -- so drift between them fails nothing. This is the check that
+# says whether they still agree. It skips loudly when the peer checkout is not
+# on this machine rather than failing, since one repository alone is a
+# legitimate way to work.
+npm run parity:check
 npm run test:ui
 npm run build
 

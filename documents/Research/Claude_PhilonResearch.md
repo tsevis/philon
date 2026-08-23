@@ -1,5 +1,24 @@
 # Philon: Technical Product & Architecture Specification (Draft DESIGN.md / RFC)
 
+> **Erratum, 2026-08-23 — the licensing premise below has expired.**
+>
+> This RFC is left as written, because it is the record of what was decided and
+> why. But one of its load-bearing facts is no longer true, and every conclusion
+> that rests on it should be read with that in mind.
+>
+> Marker was GPL-3.0 when this was written. It is not now: it relicensed
+> GPL-3.0 → OpenRAIL → **Apache-2.0** (`65f73c9`, 2026-07-17) and released
+> 2.0.0 on 2026-07-20. The 2.0 `LICENSE` is the Apache License 2.0 with no GPL
+> text in it, and `pyproject.toml` declares `license = { text = "Apache-2.0" }`.
+> Apache-2.0 is compatible with an MIT project subject to attribution and
+> NOTICE, so §8.6's "do not fork Marker (GPL)" and §9.3's listing of Marker code
+> under *do not use* no longer follow from the licence.
+>
+> Philon's rule is unchanged — it reuses no Marker code — but it is now held on
+> clean-room and dependency-budget grounds rather than legal ones. See the
+> README. The Surya weight-licence caveats in this document are separate claims
+> and were **not** re-checked here.
+
 ## TL;DR
 - **Build Philon as a deterministic, native-text-first, IR-centric document converter** that treats OCR and VLM/LLM repair as *selectively invoked, verified* subroutines — not as the default path. The single biggest accuracy-and-speed win over Marker is a routing layer that classifies each page/region and uses expensive models only where explicit quality gates fail.
 - **Adopt a permissive stack (PDFium via pypdfium2 [BSD], PaddleOCR/docTR/Tesseract [Apache-2.0], custom/permissive layout models) to escape Marker's GPL code + revenue-capped model-weight licensing.** Marker's code is GPL-3.0 and Surya weights are commercially usable only by organizations with less than $5M gross revenue and less than $5M lifetime VC/angel funding — above that a paid Datalab commercial license is required. Philon must therefore re-implement the pipeline and avoid Surya weights to stay permissive/commercial-friendly.
