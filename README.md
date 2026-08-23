@@ -155,14 +155,24 @@ that it did so, and an ordinary launch goes straight to the workspace.
 
 The Models pane can also discover local olmOCR, Qwen, and BGE-M3 copies from
 the system model inventory. On this private development Mac, Qwen 3.8 27B with
-its local multimodal projector is the preferred **manual-only** repair adapter;
-olmOCR is retained as the fallback. Philon renders and retains the selected
-source crop, records the candidate and model artefact fingerprint, and never
-replaces text automatically. Qwen 2.5 VL remains blocked because its installed
-licence is non-commercial. BGE-M3 is permitted only as a user-authorized local
+its local multimodal projector is the preferred repair adapter; olmOCR is
+retained as the fallback. Philon renders and retains the selected source crop
+and records the candidate and model artefact fingerprint.
+
+Repair is manual unless a run explicitly asks otherwise. Text is replaced only
+when `local_repair` is set, only where the health gate already refused to vouch
+for the text, and the extracted words are retained beside every replacement so
+they can be restored — see the automatic-repair note under Releases.
+
+The **3B** copy of Qwen 2.5 VL installed here is blocked: its `LICENSE` is the
+Qwen Research License, which is non-commercial. This is specific to that
+checkpoint, not to the model family — the 7B and 32B builds are Apache-2.0 and
+would be approvable. BGE-M3 is permitted only as a user-authorized local
 Verified sidecar; its runtime and artifact are checked before vector export.
-The Models pane reports readiness, missing runtimes, and policy blocks without
-loading a model or making a network request.
+
+The Models pane reports readiness, missing runtimes and policy blocks without
+loading a model and without making a network request. The one exception is a
+download you ask for by name, described under Local only.
 
 Philon does not reuse Marker code or models.
 
