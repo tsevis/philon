@@ -340,7 +340,7 @@ For each input, Philon also creates a dedicated export directory containing:
 - `*.evidence.json` warnings, confidence summary, validation record, and timings
 - `philon-output-manifest.json` stable relative file paths and SHA-256 hashes
 - `assets/page-previews/*.png` local review rasters used for source/evidence overlays
-- `images/*` native PDF image streams, deduplicated by hash with a page/object provenance manifest
+- `images/*` native PDF image streams, deduplicated by hash with a page/object provenance manifest. An image whose PDF filter no browser engine can display — JPEG 2000 and TIFF, mainly — is decoded and written as PNG, because a deliverable nothing opens is not portable. The manifest keeps `source_bytes_sha256` for the bytes the PDF actually held and `source_format` for what they were, so a re-encoded export still says exactly what it came from. An image Philon could not decode at all is left as its own bytes and claims nothing.
 - optional `*.page-tree.json` interchange output with embedded image data
 - `tables/*.csv` for tables recovered from a page's own rules — joined across pages where the rules continue — and for native tables whose delimiter and row shape were provable
 
