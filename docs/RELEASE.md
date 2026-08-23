@@ -16,8 +16,11 @@
    Read the line it prints: it names how many files were byte-identical.
    `PHILON_PARITY_REQUIRE=1` turns the skip into a failure if you would rather not
    have to read it.
-4. Build the frozen engine with `npm run engine:package` and verify its
-   authenticated health endpoint locally.
+4. Verify the frozen engine's authenticated health endpoint locally. Step 2 has
+   already built it — `engine:package` runs inside `release:verify`, before the
+   engine suite, so that the Apple Vision integration tests execute rather than
+   skip. The health check is the part no gate covers, which is the only reason
+   this is a step of its own.
 5. Build the ad-hoc signed application with `npm run tauri:package` on an
    Apple-Silicon macOS 15 runner. `npm run release:verify -- --package` does steps
    2 and 5 together and additionally runs `hdiutil verify` on the DMG and records
