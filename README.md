@@ -377,6 +377,36 @@ against an older shape is never reached rather than being read and rejected. An
 entry that cannot be read back is recomputed from the source: reuse is an
 optimisation, and a broken optimisation must not be able to refuse a document.
 
+**0.2.6** — The model fetcher's redirect check was never in force. It followed
+redirects by hand and re-checked each hop against the allow-list, and
+`urllib.request.urlopen` had already followed them itself and returned the final
+response — so the check covered the first URL and nothing after it. Asking
+`huggingface.co` for a pack file returned a 200 from a CDN host the allow-list
+refuses, and nothing had looked. The first real download in the project's life
+is what found it; every test had mocked the connection and exercised the
+unreachable half. The fetcher now opens through an opener built to refuse
+redirects, and the allow-list names the Xet CDN HuggingFace actually serves
+from, matched on a leading dot so a look-alike domain cannot slip under it.
+
+An extracted image is exported in a format something can open. JPEG 2000 and
+TIFF are ordinary PDF image filters and no browser engine displays either, so a
+paper whose figures were JPEG 2000 produced thirteen broken thumbnails beside
+thirteen correct pixel sizes. They are decoded and written as PNG now, with the
+original bytes' digest and format both recorded, so a re-encoded export still
+says what it came from.
+
+Markdown drops a column that a merged cell leaves empty in every row. HTML says
+`colspan`; Markdown cannot, so those columns were printed as blanks from top to
+bottom. A column covered in only some rows keeps its blanks, because dropping it
+would misalign the rows that use it.
+
+The about screen opens on every launch rather than once per version, and
+`Philon ▸ About Philon` opens it too — that menu item used to open the stock
+macOS panel, which carries a version number and nothing else.
+
+The two engine copies are checked against each other by a gate rather than by
+hand, on every `verify-release` and on every commit.
+
 **0.2.5** — The Batch tab kept its documents. Adding a document emptied the
 window: the queue reads each row from the record `list_batch_items` returns,
 and the record arrived with every multi-word field renamed — `sourcePath`

@@ -12,7 +12,16 @@ async function renderWorkspace() {
   const view = render(<App />);
   // The workspace asks the host for history and any interrupted batch on mount.
   await waitFor(() => expect(callsTo("list_jobs").length).toBeGreaterThan(0));
+  // The about screen now opens on every launch, so every test that wants the
+  // workspace has to get past it first, exactly as a person does.
+  await dismissSplash();
   return view;
+}
+
+/** Close the about screen the way a person does: the Continue button. */
+async function dismissSplash() {
+  const button = screen.queryByRole("button", { name: "Continue" });
+  if (button) await act(async () => { fireEvent.click(button); });
 }
 
 /** Choose a single document through the mocked native file dialog. */
@@ -341,9 +350,6 @@ describe("about", () => {
     // says in its own doc comment that menu selection and its on-canvas
     // counterpart always perform the same action, and this was the one item
     // where that was untrue.
-    // The splash opens itself on a first launch, so mark it seen: what is
-    // under test is asking for it again once it has been dismissed.
-    localStorage.setItem("philon.splash.seen.v1", VERSION);
     respondWith({ model_status: { packs: [] } });
     await renderWorkspace();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -358,7 +364,6 @@ describe("about", () => {
   });
 
   it("the toolbar button opens it too", async () => {
-    localStorage.setItem("philon.splash.seen.v1", VERSION);
     respondWith({ model_status: { packs: [] } });
     await renderWorkspace();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -421,19 +426,40 @@ describe("diagnostics", () => {
   });
 });
 
-describe("reaching the about screen again", () => {
-  // The splash is deliberately a once-per-version thing, so from the second
-  // launch onwards the About button in the top bar is the only way back to
-  // what Philon promises. A dead button there means the text is simply gone.
-  beforeEach(() => localStorage.setItem("philon.splash.seen.v1", VERSION));
+describe("the about screen on every launch", () => {
+  // It was once per version, recorded in localStorage. The owner asked for it
+  // on every launch instead: the screen carries what Philon is, what it refuses
+  // to do, and the sources behind it, and that is worth meeting each time
+  // rather than once and then never again.
 
-  it("stays out of the way on a launch that has already seen this version", async () => {
-    await renderWorkspace();
-    expect(screen.queryByRole("dialog", { name: "Philon" })).toBeNull();
+  it("opens on launch, and writes nothing down", async () => {
+    respondWith({ model_status: { packs: [] } });
+    render(<App />);
+    const dialog = await screen.findByRole("dialog", { name: "Philon" });
+    expect(dialog.textContent).toContain(VERSION);
+    await dismissSplash();
+    // Nothing is remembered, because nothing is being decided.
+    expect(localStorage.getItem("philon.splash.seen.v1")).toBeNull();
   });
 
-  it("reopens the about screen from the top bar", async () => {
+  it("opens again on the next launch, having been dismissed on the last", async () => {
+    respondWith({ model_status: { packs: [] } });
+    render(<App />);
+    await screen.findByRole("dialog", { name: "Philon" });
+    await dismissSplash();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Philon" })).toBeNull());
+    cleanup();
+
+    // A second launch, same storage, same everything.
+    resetBridge();
+    respondWith({ model_status: { packs: [] } });
+    render(<App />);
+    expect(await screen.findByRole("dialog", { name: "Philon" })).not.toBeNull();
+  });
+
+  it("reopens the about screen from the top bar once dismissed", async () => {
     await renderWorkspace();
+    expect(screen.queryByRole("dialog", { name: "Philon" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /About Philon/i }));
     expect(screen.getByRole("dialog", { name: "Philon" })).not.toBeNull();
   });

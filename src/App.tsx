@@ -31,7 +31,7 @@ import type { BatchItem, BlockResult, ConversionResult, DocumentResult, HistoryI
 import { basename, bytesLabel, confidenceLabel, linkSummary, measuredFormulaSummary, modelSetupSummary, packDownloadLabel, ruledTableSummary, timestampLabel } from "./lib/format";
 import type { OutputChoice, Preferences } from "./lib/preferences";
 import { defaultPreferences, loadPreferences, outputChoices, profiles } from "./lib/preferences";
-import { Splash, rememberSplashSeen, splashWanted } from "./Splash";
+import { Splash } from "./Splash";
 import makersMark from "./assets/makers-mark.png";
 
 type Tab = "single" | "batch";
@@ -302,7 +302,10 @@ function App() {
   const [libraryCleanPending, setLibraryCleanPending] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [editingBlock, setEditingBlock] = useState<BlockResult | null>(null);
-  const [splashOpen, setSplashOpen] = useState(splashWanted);
+  // Every launch, not once per version. The screen carries what Philon is,
+  // what it refuses to do, and the sources behind it, and the owner asked for
+  // it in front of them each time rather than once and then never again.
+  const [splashOpen, setSplashOpen] = useState(true);
   const activeTaskId = useRef<string | null>(null);
 
   const activeDocument = result?.results[0] || null;
@@ -380,8 +383,12 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.matches("input, textarea, [contenteditable='true']")) return;
+      // `event.target` is whatever the event was dispatched on, which is not
+      // always an element: a key event raised on `window` or `document` has no
+      // `matches`, and the cast that used to be here asserted otherwise and
+      // threw. Ask what it is rather than declaring it.
+      const target = event.target;
+      if (target instanceof Element && target.matches("input, textarea, [contenteditable='true']")) return;
       if (event.metaKey && !event.shiftKey && event.key.toLowerCase() === "o") {
         event.preventDefault();
         if (view === "workspace" && tab === "single") void chooseSingle();
@@ -688,7 +695,7 @@ function App() {
       <a className="makers-mark" href="https://tsevis.com" target="_blank" rel="noreferrer noopener" title="Made by Charis Tsevis — tsevis.com">
         <img src={makersMark} alt="Charis Tsevis" width={20} height={20} />
       </a>
-      {splashOpen && <Splash onDismiss={() => { rememberSplashSeen(); setSplashOpen(false); }} />}
+      {splashOpen && <Splash onDismiss={() => setSplashOpen(false)} />}
       {editingBlock && <ReviewEditor block={editingBlock} onCancel={() => setEditingBlock(null)} onSave={(text) => { void reviewBlock(editingBlock.id, "edit", undefined, text); setEditingBlock(null); }} />}
     </main>
   );
