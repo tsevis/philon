@@ -134,6 +134,19 @@ precisely what that does and does not mean.
   a re-check of every redirect hop, and a SHA-256 comparison that must pass
   *before* anything is moved into place. It also refuses a pack the model
   policy has not approved, so a download is not a way around the licence gate.
+- The one host rule that is not exact match is the CDN HuggingFace redirects
+  large files to, which is named for the region a client resolves to and cannot
+  be listed exhaustively. A host beneath a named parent is allowed, matched as
+  the bare parent or with a **leading dot** in front of it — so
+  `us.aws.cdn.hf.co` passes and `cdn.hf.co.example.invalid` does not. The gate
+  fails if that dot goes missing.
+- The redirect re-check has to be *reachable*, which is a separate property from
+  existing. It was not, until a real download found it: `urllib.request.urlopen`
+  follows redirects itself and returns only the final response, so the
+  hand-written check covered the first URL and nothing after it, and a request
+  to `huggingface.co` came back 200 from a CDN host the allow-list refuses. The
+  fetcher now opens through an opener built to refuse redirects, and the gate
+  fails if it reaches for `urlopen` or drops that handler.
 - It uses only the standard library, so the dependency count and the SBOM are
   unchanged.
 - Every digest in the manifest was computed from a real copy of the file, so a
@@ -174,7 +187,16 @@ The Models pane reports readiness, missing runtimes and policy blocks without
 loading a model and without making a network request. The one exception is a
 download you ask for by name, described under Local only.
 
-Philon does not reuse Marker code or models.
+Philon does not reuse Marker code or models. That is a clean-room position and
+a dependency budget, not a licence one: Marker relicensed GPL-3.0 → OpenRAIL →
+**Apache-2.0** on 2026-07-17 and released 2.0.0 on 2026-07-20, so reuse with
+attribution would now be permitted. Philon still declines it, because the whole
+of Philon's conversion path runs on four runtime dependencies — PDFium, pypdf,
+Pillow and, in the port, Qt — against Marker's ML stack, and because an engine
+that must justify every rectangle it emits is easier to hold to that standard
+when nothing in it was inherited. The compatibility export is named `page_tree`
+(formerly `marker_json`) and keeps that name for the same reason: it describes
+what it contains rather than what it once imitated.
 
 The current engine also marks repeated page artifacts, retains a per-page routing decision, recovers ruled tables from the rules a page draws — including the merged cells its *missing* rules prove — recognises formulas from the script geometry a page measurably set, exports safely delimited native tables, and records local human review decisions as reversible provenance.
 
@@ -221,6 +243,8 @@ release:verify` runs the complete sequence below, which is what CI performs.
 npm run license:check      # model packs carry an approved licence
 npm run sbom:check         # every declared dependency is in SBOM.cdx.json
 npm run local-only:check   # no HTTP client reached the runtime sources
+npm run model-fetch:check  # the one exempt file is held to its own policy
+npm run parity:check       # the port's engine still differs by one documented hunk
 npm run test:ui            # workspace logic and React component behaviour
 npm run test:engine        # engine, socket bridge, preflight fuzz, benchmark harness
 npm run test:bench         # benchmark harness alone, also covered by test:engine
@@ -228,6 +252,15 @@ npm run build              # tsc --noEmit and the production bundle
 cargo test  --manifest-path src-tauri/Cargo.toml
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
+
+`parity:check` is the one that needs something outside this repository. Philon's
+engine exists twice — here, and in the PySide6 port — and each copy is only ever
+tested by its own suite, so the two can drift apart with every test passing.
+They once drifted to forty-six hunks that way. `tests/parity_policy.py` compares
+them: three files byte-identical, `philon_engine.py` differing by exactly the one
+hunk the port documents. With the peer checkout absent it says so on stderr and
+passes, since one repository alone is a legitimate way to work; CI sets
+`PHILON_PARITY_REQUIRE=1` so that going unchecked is an error there.
 
 Tests live beside what they cover: `engine/test_engine.py` for conversion and
 evidence, `engine/test_socket.py` for the authenticated Unix-socket bridge,
@@ -308,7 +341,7 @@ review rather than inventing image alt text.
 
 ## Benchmarks
 
-Use the private-corpus harness in [`bench/README.md`](bench/README.md) to record local runs, including cold/warm timing, cache use, source-map coverage, output-contract failures, and optional private-gold accuracy metrics. Public claims against Marker or Docling remain blocked until the same version-pinned corpus, hardware, and methodology have been run.
+Use the private-corpus harness in [`bench/README.md`](bench/README.md) to record local runs, including cold/warm timing, cache use, source-map coverage, output-contract failures, and optional private-gold accuracy metrics. Public claims against Marker or Docling remain blocked until the same version-pinned corpus, hardware, and methodology have been run — and the comparator's own version is part of what must be pinned and recorded, since the heading figures above are true of marker-pdf 1.10.2 and were never re-measured against 2.0.
 
 ## Releases
 
@@ -467,6 +500,13 @@ Measured against Marker on three papers: **100% recall at 100% precision**,
 **100% at 100%** (its one disagreement is a heading Marker itself missed and
 Philon found — same bold face as the section Marker did mark), and **96% at
 100%**. No false positives remain on any of the three.
+
+Those figures, and the recall figures in the section below, were measured on
+2026-08-21 against **marker-pdf 1.10.2** (`v1.10.2-13-g6ae3889`), which was
+what the local checkout held at the time. Marker has since moved to 2.0.0. The
+numbers are not restated against it and are not claimed to hold against it: they
+say what they say about the version named here, and re-measuring is one of the
+runs still owed under Benchmarks.
 
 The one remaining difference is deliberate. Marker renders `Algorithm 1 Compute
 loss` as a heading; Philon calls it a **caption**, because a figure, a table and

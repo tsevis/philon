@@ -4,9 +4,11 @@ import { readFile } from "node:fs/promises";
 // the exemption is only as good as what this gate holds that file to. A file
 // allowed to open connections and then trusted to be careful is not a policy.
 //
-// Four properties are checked in the source, and the manifest is checked
+// Five properties are checked in the source, and the manifest is checked
 // against the same rules, because a download block naming an arbitrary host or
-// carrying no digest would walk around all four.
+// carrying no digest would walk around all five. The fourth of them -- that the
+// redirect check is reachable at all -- was added after a real fetch showed the
+// module returning a 200 from a host its own allow-list refuses.
 
 const fetcher = new URL("../engine/model_fetch.py", import.meta.url);
 const manifest = new URL("../engine/model-manifest.json", import.meta.url);
@@ -33,12 +35,56 @@ if (/endswith\(\s*MODEL_HOST_ALLOWLIST/.test(source)) {
   failures.push("model_fetch.py matches hosts by suffix, which accepts a look-alike domain.");
 }
 
+// 2a. The one rule that is not exact match. HuggingFace serves large files from
+//     a per-region Xet CDN host that cannot be enumerated here, so hosts beneath
+//     a named parent are allowed. That is only safe while the match is anchored
+//     on a leading dot: `cdn.hf.co.example.invalid` ends with `cdn.hf.co` and
+//     would pass an unanchored test, and does not end with `.cdn.hf.co`.
+if (/MODEL_HOST_ALLOWED_PARENTS/.test(source)) {
+  if (!/endswith\("\." \+ parent\)/.test(source)) {
+    failures.push(
+      "model_fetch.py matches an allowed parent domain without anchoring on a leading dot; " +
+      "that accepts a look-alike such as cdn.hf.co.example.invalid.",
+    );
+  }
+  const parents = /MODEL_HOST_ALLOWED_PARENTS\s*=\s*\(([^)]*)\)/.exec(source)?.[1] ?? "";
+  for (const parent of parents.match(/"([^"]+)"/g) ?? []) {
+    // A parent with one label is a public suffix: ".co" would allow the world.
+    if (parent.replace(/"/g, "").split(".").length < 2) {
+      failures.push(`model_fetch.py names ${parent} as an allowed parent; that is too broad to be a host.`);
+    }
+  }
+}
+
 // 3. HTTPS only, and every redirect hop re-checked rather than the first URL.
 if (!/scheme\.lower\(\)\s*!=\s*"https"/.test(source)) {
   failures.push("model_fetch.py does not require HTTPS.");
 }
 if (!/for _ in range\(MAX_REDIRECTS/.test(source) || !/is_allowed_url\(current\)/.test(source)) {
   failures.push("model_fetch.py does not re-check each redirect hop against the allow-list.");
+}
+
+// 3a. And that the re-check is reachable. This is the property whose absence
+//     made the loop above dead code: `urllib.request.urlopen` installs a
+//     redirect handler that follows hops itself and returns only the final
+//     response, so the allow-list covered the first URL and nothing after it.
+//     A real fetch came back 200 from a host `is_allowed_url` refuses. The
+//     module must therefore open through an opener built to refuse redirects,
+//     and must not reach for `urlopen`, which cannot be given one.
+if (/urllib\.request\.urlopen\s*\(/.test(source)) {
+  failures.push(
+    "model_fetch.py calls urllib.request.urlopen, which follows redirects itself; " +
+    "the hand-written redirect check would never see a hop.",
+  );
+}
+if (!/class\s+_RefuseRedirects\(urllib\.request\.HTTPRedirectHandler\)/.test(source)) {
+  failures.push("model_fetch.py installs no handler that refuses to follow redirects.");
+}
+if (!/def redirect_request\([^)]*\):[^\n]*\n\s*return None/.test(source)) {
+  failures.push("model_fetch.py's redirect handler does not refuse the hop by returning None.");
+}
+if (!/build_opener\(/.test(source) || !/opener\.open\(request/.test(source)) {
+  failures.push("model_fetch.py does not open its connections through the opener it built.");
 }
 
 // 4. Nothing is installed before its bytes match. The move into place must be
@@ -88,6 +134,7 @@ for (const pack of declared.packs ?? []) {
 if (failures.length) throw new Error(`Model-fetch policy failed:\n  - ${failures.join("\n  - ")}`);
 console.log(
   `Model-fetch policy passed: 1 network-capable source held to HTTPS, an exact-match host ` +
-  `allow-list and a verified digest; ${blocks} declared download blocks covering ${files} files, ` +
-  `every one with a SHA-256 and a byte count.`,
+  `allow-list with dot-anchored parents, a redirect check that is reachable because the opener ` +
+  `refuses to follow hops itself, and a verified digest; ${blocks} declared download blocks ` +
+  `covering ${files} files, every one with a SHA-256 and a byte count.`,
 );

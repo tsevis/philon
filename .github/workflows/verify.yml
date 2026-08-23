@@ -56,3 +56,71 @@ jobs:
       - run: PHILON_VISION_INTEGRATION=1 npm run test:engine
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: cargo check --manifest-path src-tauri/Cargo.toml
+
+  # Everything above needs a Mac: the Apple Vision helper, the Tauri build, the
+  # packaged bundle. Everything below does not, and Linux minutes bill at 1x
+  # where macOS bills at 10x -- so the gates and the engine run here as well,
+  # and keep running when the macOS job is the expensive thing to spend on.
+  #
+  # This job also carries the one check the macOS job cannot: parity against
+  # the port, which needs both repositories checked out at once.
+  engine-and-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: philon
+
+      # The port, so the parity gate has something to compare against. Both
+      # repositories are private, so this needs a token with read access to the
+      # other one, held as PHILON_PEER_TOKEN.
+      - uses: actions/checkout@v7
+        with:
+          repository: tsevis/philon-python
+          token: ${{ secrets.PHILON_PEER_TOKEN }}
+          path: philon_p
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: philon/package-lock.json
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+
+      - working-directory: philon
+        run: npm ci
+      - working-directory: philon
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --requirement engine/requirements.txt
+
+      - name: Policy gates
+        working-directory: philon
+        run: |
+          npm run license:check
+          npm run sbom:check
+          npm run local-only:check
+          npm run model-fetch:check
+
+      - working-directory: philon
+        run: npm run test:ui
+      - working-directory: philon
+        run: npm run build
+
+      # Without PHILON_VISION_INTEGRATION the two Apple Vision tests skip, which
+      # is the honest result on a Linux runner. The macOS job runs them for real.
+      - name: Engine and benchmark suites
+        working-directory: philon
+        run: npm run test:engine
+
+      # Skipping is a failure here: a parity gate that passes without a peer to
+      # compare against is indistinguishable from one that compared and was
+      # satisfied.
+      - name: Engine parity against the port
+        working-directory: philon
+        env:
+          PHILON_PARITY_PEER: ${{ github.workspace }}/philon_p
+          PHILON_PARITY_REQUIRE: "1"
+        run: npm run parity:check
