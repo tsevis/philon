@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   package:
-    runs-on: macos-15
+    runs-on: [self-hosted, macOS]
     permissions:
       contents: read
     steps:

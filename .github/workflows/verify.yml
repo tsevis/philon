@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: macos-15
+    runs-on: [self-hosted, macOS]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -65,7 +65,7 @@ jobs:
   # This job also carries the one check the macOS job cannot: parity against
   # the port, which needs both repositories checked out at once.
   engine-and-policy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v7
         with:
