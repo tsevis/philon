@@ -36,7 +36,11 @@ cargo check --manifest-path src-tauri/Cargo.toml
 
 if [[ "${1:-}" == "--package" ]]; then
   npm run tauri:package
-  DMG_PATH="${ROOT_DIR}/src-tauri/target/release/bundle/dmg/Philon_0.2.6_aarch64.dmg"
+  # Named from package.json rather than pinned: a hardcoded version turns the
+  # first package run after a version bump into "Expected DMG was not produced",
+  # which reads as a build failure and is not one.
+  VERSION="$(node -p 'require("./package.json").version')"
+  DMG_PATH="${ROOT_DIR}/src-tauri/target/release/bundle/dmg/Philon_${VERSION}_aarch64.dmg"
   [[ -f "${DMG_PATH}" ]] || { echo "Expected DMG was not produced: ${DMG_PATH}" >&2; exit 1; }
   hdiutil verify "${DMG_PATH}"
   shasum -a 256 "${DMG_PATH}"

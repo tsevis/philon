@@ -25,14 +25,52 @@
    Apple-Silicon macOS 15 runner. `npm run release:verify -- --package` does steps
    2 and 5 together and additionally runs `hdiutil verify` on the DMG and records
    its SHA-256.
-6. Sign the application and engine with the project Apple Developer identity, then
-   notarize and staple the DMG in the protected release environment.
+6. Sign, notarize and staple, in the protected release environment. Sign
+   inside-out -- a bundle signature seals the resources beneath it, so anything
+   re-signed afterwards invalidates the seal above it:
+
+       ID="Developer ID Application: <name> (<team>)"
+       codesign --force --timestamp --options runtime --sign "$ID" \
+         Philon.app/Contents/Resources/_up_/engine/dist/philon-vision-ocr
+       codesign --force --timestamp --options runtime \
+         --entitlements src-tauri/engine.entitlements --sign "$ID" \
+         Philon.app/Contents/Resources/_up_/engine/dist/philon-engine
+       codesign --force --timestamp --options runtime --sign "$ID" Philon.app
+
+   Then confirm the entitlements actually took, because `codesign` will not tell
+   you. AMFI rejects XML comments in an entitlements plist, prints a parse error
+   and exits 0 -- signing the binary with no entitlements at all:
+
+       codesign -d --entitlements - --xml \
+         Philon.app/Contents/Resources/_up_/engine/dist/philon-engine | plutil -p -
+
+   The app is not the DMG. Rebuild the disk image around the re-signed bundle,
+   sign the image too, then submit it. Converting the packaged DMG to UDRW,
+   replacing `Philon.app` with `ditto`, and converting back to UDZO preserves the
+   window layout, `.DS_Store` and `.VolumeIcon.icns` that `bundle_dmg.sh` set up.
+
+       xcrun notarytool submit <dmg> --keychain-profile <profile> --wait
+       xcrun stapler staple <dmg>
+       xcrun stapler validate <dmg> && spctl -a -vvv -t open \
+         --context context:primary-signature <dmg>
+
+   Store the credentials once with `xcrun notarytool store-credentials`; it
+   validates against Apple before storing, so a bad key or issuer fails there
+   with a usable message rather than as a bare 401 at submit time. The key must
+   be a Team key with Developer access -- an Individual key authenticates for
+   other App Store Connect APIs and is refused by `notarytool`.
 7. Install the notarized DMG on a clean Apple-Silicon macOS 15 machine and repeat
    offline conversion, review, queue recovery, and malformed-input tests. Install
    with `ditto`, never `cp -R`: `cp -R` does not preserve the bundle seal and
    `codesign --verify --deep --strict` then fails on a bundle that was fine in the
    DMG.
-8. Publish benchmark methodology and only make comparative claims the archived
+8. Tag the commit the build came from and publish the stapled DMG as the
+   release asset, with the SHA-256 recorded in step 5 beside it. Binaries are not
+   committed to the tree -- see `releases/README.md`. Tag only after step 7
+   passes: notarization says Apple checked the signature, not that the engine
+   starts.
+
+9. Publish benchmark methodology and only make comparative claims the archived
    corpus supports. A recorded benchmark result names the documents it measured by
    filename, size and SHA-256, so "the same version-pinned corpus" is something a
    reader can check rather than something the runner asserts.
