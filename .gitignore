@@ -14,3 +14,8 @@ engine/*.spec
 
 # Recorded from whatever document a developer converted; not ours to publish.
 src/dev/conversion.json
+
+# Built DMGs are published as GitHub Release assets, not committed here.
+releases/*.dmg
+releases/*.dmg.sha256
+releases/*.log
