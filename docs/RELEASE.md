@@ -44,15 +44,32 @@
        codesign -d --entitlements - --xml \
          Philon.app/Contents/Resources/_up_/engine/dist/philon-engine | plutil -p -
 
-   The app is not the DMG. Rebuild the disk image around the re-signed bundle,
-   sign the image too, then submit it. Converting the packaged DMG to UDRW,
-   replacing `Philon.app` with `ditto`, and converting back to UDZO preserves the
-   window layout, `.DS_Store` and `.VolumeIcon.icns` that `bundle_dmg.sh` set up.
+   The app and the DMG are notarized separately, and both need a ticket. A
+   ticket stapled only to the image covers the download; the moment someone
+   drags the app to /Applications it carries nothing of its own, and a first
+   launch without a network can stall at Gatekeeper. So notarize the app first,
+   staple it, and only then build the image around the stapled copy:
 
+       ditto -c -k --keepParent Philon.app Philon.zip
+       xcrun notarytool submit Philon.zip --keychain-profile <profile> --wait
+       xcrun stapler staple Philon.app
+
+   Then build the DMG around that stapled bundle, sign the image, and notarize
+   and staple it in turn. Converting the packaged DMG to UDRW, replacing
+   `Philon.app` with `ditto`, and converting back to UDZO preserves the window
+   layout, `.DS_Store` and `.VolumeIcon.icns` that `bundle_dmg.sh` set up.
+
+       codesign --force --timestamp --sign "$ID" <dmg>
        xcrun notarytool submit <dmg> --keychain-profile <profile> --wait
        xcrun stapler staple <dmg>
-       xcrun stapler validate <dmg> && spctl -a -vvv -t open \
-         --context context:primary-signature <dmg>
+
+   Check both layers, not just the one you stapled last. `spctl` on the image
+   says nothing about the bundle inside it:
+
+       xcrun stapler validate <dmg>
+       spctl -a -vvv -t open --context context:primary-signature <dmg>
+       hdiutil attach <dmg> -nobrowse -readonly -mountpoint /tmp/v
+       spctl -a -vvv /tmp/v/Philon.app && xcrun stapler validate /tmp/v/Philon.app
 
    Store the credentials once with `xcrun notarytool store-credentials`; it
    validates against Apple before storing, so a bad key or issuer fails there
