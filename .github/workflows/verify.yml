@@ -30,23 +30,53 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: [self-hosted, macOS]
+    # HOSTED macOS, BECAUSE THE ALTERNATIVE IS NOT A SLOWER GATE, IT IS NONE.
+    #
+    # This job genuinely needs a Mac -- the Apple Vision helper, the Tauri
+    # build, the packaged bundle -- so it cannot follow `engine-and-policy`
+    # onto `ubuntu-latest`. And it cannot have a self-hosted one: this
+    # repository is public, and `tsevisrunner` refuses a public repository a
+    # runner on the owner's Mac, correctly, because a fork's pull request
+    # would then run its author's code there. So `[self-hosted, macOS]` was a
+    # label no runner would ever answer, and two runs proved it by sitting
+    # `queued` from 2026-09-16T03:42Z with nothing counting.
+    #
+    # THE COST WAS MEASURED ON THIS JOB'S OWN FIRST RUN, and it is zero.
+    # Run 35092479590, 2026-09-16, `/actions/runs/35092479590/timing`:
+    #
+    #   {"MACOS":{"jobs":1,"total_ms":0},"UBUNTU":{"jobs":1,"total_ms":0}}
+    #
+    # `verify` took 4m22s of that macOS runner and billed nothing. Standard
+    # GitHub-hosted runners are free in a public repository, macOS included.
+    #
+    # That settles a number this fleet had been planning around: an earlier
+    # estimate put philon at 86,9 billable minutes per run and 3.128 a month,
+    # and refused hosted runners on the strength of it. The estimate applied
+    # macOS's 10x multiplier -- which is real, and is what the 1x/10x note
+    # under `engine-and-policy` records -- to a repository that is not billed
+    # at all. The multiplier was right and the bill it was multiplying was
+    # zero.
+    #
+    # It is measured rather than cited because the two halves of GitHub's own
+    # billing page can be read against each other: standard hosted runners are
+    # free in public repositories, AND larger runners are always charged even
+    # there. `/timing` does not have two readings.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-      # actions/setup-python hardcodes /Users/runner/hostedtoolcache on macOS
-      # (the IS_MAC branch of its run()), overwriting RUNNER_TOOL_CACHE. That
-      # path does not exist on a self-hosted Mac and cannot be created without
-      # root. uv supplies the same interpreter; --seed gives a writable venv so
-      # `pip install` is not refused by PEP 668.
-      - name: Set up Python 3.10 (self-hosted macOS)
-        run: |
-          uv python install "3.10"
-          uv venv --seed --python "3.10" "$RUNNER_TEMP/venv"
-          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+      # `actions/setup-python` again, and the comment it replaces explains why
+      # it can be: it hardcodes /Users/runner/hostedtoolcache on macOS, a path
+      # that does not exist on a self-hosted Mac and cannot be created without
+      # root. On a HOSTED macOS runner that is the runner's own tool cache and
+      # exists. The `uv` dance was the workaround for the machine this job no
+      # longer runs on.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
       # scripts/package-engine.sh and the test:engine script both use
@@ -72,7 +102,29 @@ jobs:
   # This job also carries the one check the macOS job cannot: parity against
   # the port, which needs both repositories checked out at once.
   engine-and-policy:
-    runs-on: [self-hosted, linux]
+    # HOSTED, BECAUSE THIS REPOSITORY IS PUBLIC AND THE FLEET REFUSES IT.
+    #
+    # `tsevisrunner status`, 2026-09-16:
+    #
+    #   PUBLIC — NO RUNNER WILL BE STARTED
+    #     philon  it went public while managed; nothing will be started for it
+    #
+    # That refusal is right and is not a preference: on a public repository a
+    # `pull_request` workflow runs the author's code, anyone can be the author,
+    # and it would run on that Mac as its owner, with its SSH keys and its `gh`
+    # credentials. So `[self-hosted, linux]` was asking for a runner that could
+    # never arrive -- two runs queued from 2026-09-16T03:42Z with nothing
+    # counting, because `timeout-minutes` only starts once a job is picked up.
+    #
+    # Free, and that is the half of the sentence below that public changes:
+    # standard GitHub-hosted runners cost nothing in a public repository. The
+    # 1x/10x note under this comment is about a BILLED account; it still
+    # decides which job goes where, and it is why `verify` above has not moved.
+    #
+    # Nothing here needs the machine: checkout, setup-node, setup-python,
+    # `npm ci`, a venv, the policy scripts and the engine suite. The one step
+    # that needs the peer checkout already does not run on a pull request.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
@@ -87,6 +139,13 @@ jobs:
       # accepted by exactly one repository on GitHub, which is what makes the
       # crossed-keys mistake below detectable.
       - name: Check the peer-repository key is present
+        # NOT ON A PULL REQUEST. Reading the port needs a peer credential,
+        # and a credential that expires is a credential that WILL expire: the
+        # mirror of this gate on tsevis/philon-python took 15 of its last 17
+        # runs red with 401 Bad credentials, none of them about code. A pull
+        # request must be able to go green on what it changed; the parity
+        # question is still asked on push and on the nightly.
+        if: github.event_name != 'pull_request'
         env:
           PEER_KEY: ${{ secrets.PHILON_PEER_SSH_KEY }}
         run: |
@@ -100,6 +159,7 @@ jobs:
       # failure this replaces -- both PATs lapsed on 2026-09-05 and again on
       # 2026-09-06, costing two red builds that had nothing to do with the code.
       - name: Check out the port
+        if: github.event_name != 'pull_request'
         id: peer
         uses: actions/checkout@v7
         with:
@@ -112,6 +172,7 @@ jobs:
       # which reads like the repository is missing rather than the key misplaced.
       - name: Explain a failed peer checkout
         if: failure() && steps.peer.outcome == 'failure'
+          && github.event_name != 'pull_request'
         env:
           PEER_KEY: ${{ secrets.PHILON_PEER_SSH_KEY }}
         run: |
@@ -183,6 +244,7 @@ jobs:
       # compare against is indistinguishable from one that compared and was
       # satisfied.
       - name: Engine parity against the port
+        if: github.event_name != 'pull_request'
         working-directory: philon
         env:
           PHILON_PARITY_PEER: ${{ github.workspace }}/philon_p
