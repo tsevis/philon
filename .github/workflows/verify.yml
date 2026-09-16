@@ -30,6 +30,23 @@ concurrency:
 
 jobs:
   verify:
+    # STILL SELF-HOSTED, AND STILL QUEUED, AND THAT IS A DECISION NOT YET MADE.
+    #
+    # This job genuinely needs a Mac -- the Apple Vision helper, the Tauri
+    # build, the packaged bundle -- so it cannot follow `engine-and-policy`
+    # onto `ubuntu-latest`. And it cannot get a self-hosted one either, for
+    # the reason written there: this repository is public.
+    #
+    # `macos-latest` would run it. Whether that is free here could not be
+    # measured: the billing endpoint needs a scope this token does not carry,
+    # GitHub's own page says standard hosted runners are free in public
+    # repositories AND that larger runners are always charged even there, and
+    # the comment below this block records macOS billing at 10x on a BILLED
+    # account. Two readings, no measurement, so no change.
+    #
+    # Until somebody decides -- hosted macOS, or make this repository private
+    # again -- this job stays queued and this workflow cannot be fully green.
+    # Said here rather than discovered from a pending check.
     runs-on: [self-hosted, macOS]
     steps:
       - uses: actions/checkout@v7
@@ -72,7 +89,29 @@ jobs:
   # This job also carries the one check the macOS job cannot: parity against
   # the port, which needs both repositories checked out at once.
   engine-and-policy:
-    runs-on: [self-hosted, linux]
+    # HOSTED, BECAUSE THIS REPOSITORY IS PUBLIC AND THE FLEET REFUSES IT.
+    #
+    # `tsevisrunner status`, 2026-09-16:
+    #
+    #   PUBLIC — NO RUNNER WILL BE STARTED
+    #     philon  it went public while managed; nothing will be started for it
+    #
+    # That refusal is right and is not a preference: on a public repository a
+    # `pull_request` workflow runs the author's code, anyone can be the author,
+    # and it would run on that Mac as its owner, with its SSH keys and its `gh`
+    # credentials. So `[self-hosted, linux]` was asking for a runner that could
+    # never arrive -- two runs queued from 2026-09-16T03:42Z with nothing
+    # counting, because `timeout-minutes` only starts once a job is picked up.
+    #
+    # Free, and that is the half of the sentence below that public changes:
+    # standard GitHub-hosted runners cost nothing in a public repository. The
+    # 1x/10x note under this comment is about a BILLED account; it still
+    # decides which job goes where, and it is why `verify` above has not moved.
+    #
+    # Nothing here needs the machine: checkout, setup-node, setup-python,
+    # `npm ci`, a venv, the policy scripts and the engine suite. The one step
+    # that needs the peer checkout already does not run on a pull request.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
