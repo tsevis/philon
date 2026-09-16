@@ -41,15 +41,26 @@ jobs:
     # label no runner would ever answer, and two runs proved it by sitting
     # `queued` from 2026-09-16T03:42Z with nothing counting.
     #
-    # THE COST IS MEASURED ON THIS JOB'S OWN RUN, not argued. GitHub's billing
-    # page says standard hosted runners are free in public repositories and
-    # that larger runners are always charged even there, and the 1x/10x note
-    # under `engine-and-policy` records macOS at 10x -- but that note is about
-    # a BILLED account. `/actions/runs/<id>/timing` answers it in one number,
-    # and a sibling public repository already answered it for Linux the same
-    # day: `{"UBUNTU":{"jobs":1,"total_ms":0}}`. If macOS answers with a
-    # non-zero `total_ms`, that number is the cost of this line and it can be
-    # reverted knowing what it was worth.
+    # THE COST WAS MEASURED ON THIS JOB'S OWN FIRST RUN, and it is zero.
+    # Run 35092479590, 2026-09-16, `/actions/runs/35092479590/timing`:
+    #
+    #   {"MACOS":{"jobs":1,"total_ms":0},"UBUNTU":{"jobs":1,"total_ms":0}}
+    #
+    # `verify` took 4m22s of that macOS runner and billed nothing. Standard
+    # GitHub-hosted runners are free in a public repository, macOS included.
+    #
+    # That settles a number this fleet had been planning around: an earlier
+    # estimate put philon at 86,9 billable minutes per run and 3.128 a month,
+    # and refused hosted runners on the strength of it. The estimate applied
+    # macOS's 10x multiplier -- which is real, and is what the 1x/10x note
+    # under `engine-and-policy` records -- to a repository that is not billed
+    # at all. The multiplier was right and the bill it was multiplying was
+    # zero.
+    #
+    # It is measured rather than cited because the two halves of GitHub's own
+    # billing page can be read against each other: standard hosted runners are
+    # free in public repositories, AND larger runners are always charged even
+    # there. `/timing` does not have two readings.
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
