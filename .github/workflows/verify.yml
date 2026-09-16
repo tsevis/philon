@@ -30,40 +30,42 @@ concurrency:
 
 jobs:
   verify:
-    # STILL SELF-HOSTED, AND STILL QUEUED, AND THAT IS A DECISION NOT YET MADE.
+    # HOSTED macOS, BECAUSE THE ALTERNATIVE IS NOT A SLOWER GATE, IT IS NONE.
     #
     # This job genuinely needs a Mac -- the Apple Vision helper, the Tauri
     # build, the packaged bundle -- so it cannot follow `engine-and-policy`
-    # onto `ubuntu-latest`. And it cannot get a self-hosted one either, for
-    # the reason written there: this repository is public.
+    # onto `ubuntu-latest`. And it cannot have a self-hosted one: this
+    # repository is public, and `tsevisrunner` refuses a public repository a
+    # runner on the owner's Mac, correctly, because a fork's pull request
+    # would then run its author's code there. So `[self-hosted, macOS]` was a
+    # label no runner would ever answer, and two runs proved it by sitting
+    # `queued` from 2026-09-16T03:42Z with nothing counting.
     #
-    # `macos-latest` would run it. Whether that is free here could not be
-    # measured: the billing endpoint needs a scope this token does not carry,
-    # GitHub's own page says standard hosted runners are free in public
-    # repositories AND that larger runners are always charged even there, and
-    # the comment below this block records macOS billing at 10x on a BILLED
-    # account. Two readings, no measurement, so no change.
-    #
-    # Until somebody decides -- hosted macOS, or make this repository private
-    # again -- this job stays queued and this workflow cannot be fully green.
-    # Said here rather than discovered from a pending check.
-    runs-on: [self-hosted, macOS]
+    # THE COST IS MEASURED ON THIS JOB'S OWN RUN, not argued. GitHub's billing
+    # page says standard hosted runners are free in public repositories and
+    # that larger runners are always charged even there, and the 1x/10x note
+    # under `engine-and-policy` records macOS at 10x -- but that note is about
+    # a BILLED account. `/actions/runs/<id>/timing` answers it in one number,
+    # and a sibling public repository already answered it for Linux the same
+    # day: `{"UBUNTU":{"jobs":1,"total_ms":0}}`. If macOS answers with a
+    # non-zero `total_ms`, that number is the cost of this line and it can be
+    # reverted knowing what it was worth.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-      # actions/setup-python hardcodes /Users/runner/hostedtoolcache on macOS
-      # (the IS_MAC branch of its run()), overwriting RUNNER_TOOL_CACHE. That
-      # path does not exist on a self-hosted Mac and cannot be created without
-      # root. uv supplies the same interpreter; --seed gives a writable venv so
-      # `pip install` is not refused by PEP 668.
-      - name: Set up Python 3.10 (self-hosted macOS)
-        run: |
-          uv python install "3.10"
-          uv venv --seed --python "3.10" "$RUNNER_TEMP/venv"
-          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+      # `actions/setup-python` again, and the comment it replaces explains why
+      # it can be: it hardcodes /Users/runner/hostedtoolcache on macOS, a path
+      # that does not exist on a self-hosted Mac and cannot be created without
+      # root. On a HOSTED macOS runner that is the runner's own tool cache and
+      # exists. The `uv` dance was the workaround for the machine this job no
+      # longer runs on.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
       # scripts/package-engine.sh and the test:engine script both use
