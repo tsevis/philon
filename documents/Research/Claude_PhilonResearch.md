@@ -59,7 +59,7 @@
 ---
 
 # 2. Marker Audit
-*(Reference: the public `VikParuchuri/marker` GitHub repository. The user's local checkout at `/Users/tsevis/AI/marker` could not be directly audited, so all statements below are based on the public repo, README, and Datalab materials, and should be re-verified against the local checkout's pinned version.)*
+*(Reference: the public `VikParuchuri/marker` GitHub repository. The user's local checkout could not be directly audited, so all statements below are based on the public repo, README, and Datalab materials, and should be re-verified against the local checkout's pinned version.)*
 
 ## 2.1 What Marker does today (inventory)
 - **Inputs:** PDF primarily; recent versions also convert images and office/e-book formats (DOCX, PPTX, XLSX, EPUB, HTML) through format-specific providers/converters.
@@ -430,7 +430,7 @@ Do **not** fork Marker (GPL). Re-implement the Provider→Builder→Processor→
 
 ## Caveats
 - **Verification gap (important):** Live primary-source web browsing could not be completed in this run (research tooling was exhausted before browsing). The enrichment pass supplied named-source confirmations for the highest-stakes claims — **Marker GPL-3.0 and the $5M revenue/funding threshold; Surya weights' $5M revenue and $5M lifetime funding caps; Mistral OCR pricing (1000 pages/$1, mistral-ocr-2503, Mar 6, 2025); olmOCR as a Qwen2-VL-7B fine-tune with ~$190/1M pages (Feb 25, 2025); Docling MIT + arXiv:2408.09869 + LF AI & Data; SmolDocling 256M/DocTags (arXiv:2503.11576); Nougat Swin+mBART 350M (arXiv:2308.13418); Surya OCR 90+ languages.** All remaining items marked *(verify)* — MinerU AGPL, Unstructured/PaddleOCR/EasyOCR/olmOCR license identifiers, LlamaParse and Mathpix pricing, pdftext's license — are from training knowledge and **must be re-checked against project LICENSE files, README, papers, model cards, and vendor pricing pages** before this becomes an authoritative RFC.
-- **Marker local checkout not audited:** All Marker statements are from the public repo, not `/Users/tsevis/AI/marker`; confirm the pinned version and any local patches.
+- **Marker local checkout not audited:** All Marker statements are from the public repo, not the local checkout; confirm the pinned version and any local patches.
 - **Vendor benchmarks are not neutral:** Marker's, Mistral's, AI2's and others' self-published numbers should not be taken as independent ground truth; re-measure on identical hardware/corpora.
 - **LLM caution:** Do not assume VLM/LLM involvement improves accuracy; without verification it frequently degrades fidelity. Philon's design deliberately constrains and verifies it.
 - **Model licensing is the top schedule risk:** achieving Marker-level quality with fully permissive weights may require training investment; budget for it.
