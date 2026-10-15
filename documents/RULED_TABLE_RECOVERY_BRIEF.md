@@ -12,8 +12,8 @@ shape, not a contract.
 
 Continue Philon's geometric table recovery. Two repos, kept in parity:
 
-    /Users/tsevis/AI/ClaudeCode/philon      (Tauri/React + Rust + Python engine)
-    /Users/tsevis/AI/ClaudeCode/philon_p    (PySide6 Qt port of the same engine)
+    <path>/philon      (Tauri/React + Rust + Python engine)
+    <path>/philon_p    (PySide6 Qt port of the same engine)
 
 Both are on `main`, clean, pushed. Work on a branch and merge when green.
 

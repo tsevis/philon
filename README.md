@@ -167,7 +167,9 @@ already on the machine, and offers to download the ones that are not. It records
 that it did so, and an ordinary launch goes straight to the workspace.
 
 The Models pane can also discover local olmOCR, Qwen, and BGE-M3 copies from
-the system model inventory. On this private development Mac, Qwen 3.8 27B with
+the system model inventory. Set `PHILON_EXTRA_MODEL_DIRS` to extra model
+folders (separated by `:` on macOS) and the manifest's `discovery_names` are
+looked up inside each. On this private development Mac, Qwen 3.8 27B with
 its local multimodal projector is the preferred repair adapter; olmOCR is
 retained as the fallback. Philon renders and retains the selected source crop
 and records the candidate and model artefact fingerprint.

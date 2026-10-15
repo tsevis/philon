@@ -1,14 +1,16 @@
 """How much within-line font structure does a corpus actually carry?
 
 Read-only; renders nothing and writes nothing. Supporting measurement for
-documents/SUBLINE_FONT_RUNS_REFUSED.md. Point SRC at a folder of PDFs.
+documents/SUBLINE_FONT_RUNS_REFUSED.md. Set PHILON_PROBE_PDFS to a folder of PDFs.
 """
-import sys, ctypes, statistics, pathlib, collections
-sys.path.insert(0, "/Users/tsevis/AI/ClaudeCode/philon/engine")
+import os, sys, ctypes, statistics, pathlib, collections
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "engine"))
 import philon_engine as E
 import pypdfium2 as pdfium, pypdfium2.raw as raw
 
-SRC = pathlib.Path("/Users/tsevis/AI/01 AI LAB/01MOZAIX LAB/03 ALGORITHMS/PHOTOMOSAICS")
+if not os.environ.get("PHILON_PROBE_PDFS"):
+    sys.exit("Set PHILON_PROBE_PDFS to the folder holding the PDFs this probe reads.")
+SRC = pathlib.Path(os.environ["PHILON_PROBE_PDFS"]).expanduser()
 
 def face(tp, i, buf, flags):
     n = raw.FPDFText_GetFontInfo(tp, i, buf, 160, ctypes.byref(flags))
