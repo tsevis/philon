@@ -435,9 +435,9 @@
     {
       "type": "application",
       "name": "vite",
-      "version": "5.4.21",
+      "version": "8.3.4",
       "scope": "excluded",
-      "purl": "pkg:npm/vite@5.4.21",
+      "purl": "pkg:npm/vite@8.3.4",
       "licenses": [
         {
           "license": {
@@ -455,9 +455,9 @@
     {
       "type": "library",
       "name": "@vitejs/plugin-react",
-      "version": "4.7.0",
+      "version": "6.1.2",
       "scope": "excluded",
-      "purl": "pkg:npm/%40vitejs/plugin-react@4.7.0",
+      "purl": "pkg:npm/%40vitejs/plugin-react@6.1.2",
       "licenses": [
         {
           "license": {
@@ -515,9 +515,9 @@
     {
       "type": "application",
       "name": "vitest",
-      "version": "2.1.9",
+      "version": "5.0.5",
       "scope": "excluded",
-      "purl": "pkg:npm/vitest@2.1.9",
+      "purl": "pkg:npm/vitest@5.0.5",
       "licenses": [
         {
           "license": {
